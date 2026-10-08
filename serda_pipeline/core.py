@@ -10,11 +10,13 @@ class PipelineError(Exception):
 
 class Report:
     def __init__(self):
-        self.data = {'files_found': {}, 'missing_files': [], 'datasets': {}, 'completed_modules': [], 'failed_modules': [], 'issues': []}
+        self.data = {'files_found': {}, 'missing_files': [], 'datasets': {}, 'completed_modules': [], 'failed_modules': [], 'skipped_modules': [], 'issues': []}
     def issue(self, module, message):
         self.data['issues'].append({'module': module, 'message': message})
     def fail(self, module, message):
         self.data['failed_modules'].append({'module': module, 'reason': message})
+    def skip(self, module, reason):
+        self.data['skipped_modules'].append({'module': module, 'reason': reason})
     def save(self, out):
         (out / 'execution_report.json').write_text(json.dumps(self.data, indent=2, default=str), encoding='utf-8')
 
