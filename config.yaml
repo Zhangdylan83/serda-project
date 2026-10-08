@@ -17,3 +17,7 @@ columns: {}
 # Units must be verified from actual exports; no default unit assumptions.
 weight_units: {kg: 1.0, kilogram: 1.0, kilograms: 1.0, lb: 0.45359237, lbs: 0.45359237, pounds: 0.45359237}
 height_units: {cm: 0.01, centimeters: 0.01, m: 1.0, meters: 1.0, in: 0.0254, inches: 0.0254}
+
+# Keep strict defaults until the study protocol authorizes calendar-day semantics.
+cohort_anchor_policy: strict_timestamp  # or calendar_day (one unique day per patient)
+temporal_granularity: timestamp         # or calendar_day (includes entire anchor day)

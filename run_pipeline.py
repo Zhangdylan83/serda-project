@@ -9,7 +9,7 @@ from serda_pipeline.schema import STEMS
 def write_reports(out, report, cohort_count=None, temporal=None):
     lines=['# Real-data EDA summary', '', 'Generated locally from the configured SERDA Excel files.',
            f'Cohort patients: {cohort_count if cohort_count is not None else "unavailable"}.', '',
-           'All event features use the inclusive pre-anchor look-back. Missing/unparseable event dates are excluded.',
+           'All event features use the configured inclusive look-back; timestamp/calendar-day semantics are recorded in execution_report.json. Missing/unparseable event dates are excluded.',
            'Record counts indicate documentation availability, not absence of disease or exposure.', '', '## Dataset inventory']
     for key, stats in report.data['datasets'].items():
         lines.append(f'- {key}: {stats["row_count"]} rows; {stats.get("unique_patients", "unavailable")} unique patients; {stats["duplicate_rows"]} exact duplicate rows.')
@@ -49,9 +49,16 @@ def main():
     if out.exists() and any(out.iterdir()) and not config.get('overwrite',False):
         parser.error('output-dir is not empty; choose a new run directory')
     if config['lookback_days'] <= 0: parser.error('lookback_days must be positive')
+    if config.get('cohort_anchor_policy', 'strict_timestamp') not in {'strict_timestamp','calendar_day'}:
+        parser.error('Invalid cohort_anchor_policy')
+    if config.get('temporal_granularity', 'timestamp') not in {'timestamp','calendar_day'}:
+        parser.error('Invalid temporal_granularity')
+    if config.get('cohort_anchor_policy') == 'calendar_day' and config.get('temporal_granularity', 'timestamp') != 'calendar_day':
+        parser.error('calendar_day anchor policy requires calendar_day temporal granularity')
     out.mkdir(parents=True,exist_ok=True); (out/'figures').mkdir(exist_ok=True)
     report=core.Report(); datasets={}; count=None; metrics=[]
     report.data['analysis_settings'] = {k:config[k] for k in ['lookback_days','baseline_tolerance_days','followup_tolerance_days','dayfirst','excel_date_min','excel_date_max']}
+    report.data['analysis_settings'].update(cohort_anchor_policy=config.get('cohort_anchor_policy','strict_timestamp'), temporal_granularity=config.get('temporal_granularity','timestamp'))
     try:
         for key in STEMS:
             try:

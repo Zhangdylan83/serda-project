@@ -17,25 +17,52 @@ def plot(series, path, title, xlabel, histogram=False):
     fig.tight_layout(); fig.savefig(path, dpi=180); plt.close(fig)
 
 
-def build_cohort(demo, report):
+def build_cohort(demo, report, config, out):
     if demo.empty: raise PipelineError('Demographic cohort is empty.')
+    profile = demo.assign(anchor_day=demo.anchor.dt.normalize()).groupby('patient').agg(
+        rows=('anchor','size'), distinct_timestamps=('anchor','nunique'),
+        distinct_calendar_days=('anchor_day','nunique'))
+    summary = {
+        'patients': len(profile),
+        'patients_multiple_timestamps': int(profile.distinct_timestamps.gt(1).sum()),
+        'patients_multiple_calendar_days': int(profile.distinct_calendar_days.gt(1).sum()),
+        'patients_same_day_multiple_timestamps': int((profile.distinct_timestamps.gt(1) & profile.distinct_calendar_days.eq(1)).sum()),
+        'missing_patient_id_rows': int(demo.patient.isna().sum()),
+        'invalid_or_missing_anchor_rows': int(demo.anchor.isna().sum()),
+    }
+    report.data['cohort_anchor_diagnostics'] = summary
+    pd.Series(summary, name='count').rename_axis('metric').to_csv(out/'cohort_anchor_diagnostics.csv')
+    profile.groupby(['distinct_timestamps','distinct_calendar_days']).size().rename('patients').to_csv(out/'anchor_multiplicity_distribution.csv')
+    report.data['completed_modules'].append('cohort_anchor_diagnostics')
     if demo.patient.isna().any() or demo.anchor.isna().any():
         raise PipelineError('Demographics contains missing patient IDs or missing/unparseable anchors.')
-    conflicts = demo.groupby('patient').anchor.nunique().gt(1)
+    policy = config.get('cohort_anchor_policy', 'strict_timestamp')
+    selected = demo[['patient','anchor']].copy()
+    if policy == 'calendar_day':
+        selected['anchor'] = selected.anchor.dt.normalize()
+    elif policy != 'strict_timestamp':
+        raise PipelineError('Unknown cohort_anchor_policy; supported: strict_timestamp, calendar_day.')
+    conflicts = selected.groupby('patient').anchor.nunique().gt(1)
     if conflicts.any():
-        report.issue('cohort', f'{int(conflicts.sum())} patients have multiple anchors. Patient-level analysis requires one explicit cohort anchor per patient.')
-        raise PipelineError('Multiple demographic anchors; cannot choose one silently.')
-    report.issue('cohort', f'{int(demo.duplicated(["patient","anchor"]).sum())} repeated cohort rows; identical patient/anchor keys collapsed.')
-    cohort = demo[['patient','anchor']].drop_duplicates()
-    return cohort
+        report.issue('cohort', f'{int(conflicts.sum())} patients have multiple anchors under {policy}. Review cohort_anchor_diagnostics.csv; no patient or anchor was selected or deleted.')
+        raise PipelineError('Multiple demographic anchors; explicit study index-visit definition required.')
+    report.issue('cohort', f'{int(selected.duplicated(["patient","anchor"]).sum())} repeated cohort keys collapsed under {policy}.')
+    return selected.drop_duplicates()
 
 
 def temporal(key, data, cohort, config, report, out):
     linked = data.merge(cohort.rename(columns={'anchor':'cohort_anchor'}), on='patient', how='left', validate='many_to_one', indicator=True)
     unmatched = linked['_merge'].eq('left_only')
     report.data['datasets'][key]['unmatched_rows'] = int(unmatched.sum())
+    stats = report.data['datasets'][key]
+    stats['outside_cohort_rows'] = int((unmatched & linked.patient.notna()).sum())
+    stats['outside_cohort_patients'] = int(linked.loc[unmatched, 'patient'].nunique())
+    stats['missing_patient_id_excluded_rows'] = int(linked.patient.isna().sum())
+    stats['matched_cohort_rows'] = int((~unmatched).sum())
+    stats['matched_cohort_patients'] = int(linked.loc[~unmatched, 'patient'].nunique())
     if unmatched.any():
-        raise PipelineError(f'{int(unmatched.sum())} rows cannot link to demographic cohort (including missing IDs). Module stopped.')
+        report.issue(key, f'{stats["outside_cohort_rows"]} outside-cohort rows ({stats["outside_cohort_patients"]} patients) and {stats["missing_patient_id_excluded_rows"]} missing-ID rows excluded. Missing IDs require local data-quality review; cohort unchanged.')
+    linked = linked.loc[~unmatched].copy()
     if 'anchor' in linked:
         invalid = linked.anchor.isna() | linked.anchor.dt.normalize().ne(linked.cohort_anchor.dt.normalize())
         if invalid.any(): raise PipelineError(f'{int(invalid.sum())} missing or conflicting supplied anchors. Module stopped.')
@@ -43,7 +70,12 @@ def temporal(key, data, cohort, config, report, out):
         conflicts = linked.contact.notna() & linked.contact.dt.normalize().ne(linked.cohort_anchor.dt.normalize())
         report.data['datasets'][key]['contact_anchor_differences'] = int(conflicts.sum())
     if 'date' not in linked: return linked, None
-    linked['days_from_anchor'] = (linked.date - linked.cohort_anchor).dt.total_seconds()/86400
+    precise_days = (linked.date - linked.cohort_anchor).dt.total_seconds()/86400
+    stats['same_anchor_day_after_timestamp_rows'] = int((linked.date.dt.normalize().eq(linked.cohort_anchor.dt.normalize()) & precise_days.gt(0)).sum())
+    if config.get('temporal_granularity', 'timestamp') == 'calendar_day':
+        linked['days_from_anchor'] = (linked.date.dt.normalize() - linked.cohort_anchor.dt.normalize()).dt.days
+    else:
+        linked['days_from_anchor'] = precise_days
     days = linked.days_from_anchor
     metrics = {'dataset':key, 'dated_records':int(days.notna().sum()), 'unknown_date_records':int(days.isna().sum()),
                'post_anchor_records':int(days.gt(0).sum()), 'before_lookback_records':int(days.lt(-config['lookback_days']).sum()),
@@ -51,6 +83,8 @@ def temporal(key, data, cohort, config, report, out):
                'lookback_patients':int(linked.loc[days.between(-config['lookback_days'],0),'patient'].nunique())}
     if 'prior_date' in linked:
         prior = (linked.prior_date-linked.cohort_anchor).dt.total_seconds()/86400
+        if config.get('temporal_granularity', 'timestamp') == 'calendar_day':
+            prior = (linked.prior_date.dt.normalize()-linked.cohort_anchor.dt.normalize()).dt.days
         metrics.update(prior_dated_records=int(prior.notna().sum()), prior_post_anchor_records=int(prior.gt(0).sum()),
                        prior_outside_lookback_records=int(prior.lt(-config['lookback_days']).sum()))
     plot(days, out/'figures'/f'{key}_record_density.png', f'{key}: record dates relative to cohort anchor', 'Days from anchor', True)
@@ -155,7 +189,20 @@ def execute(datasets, config, report, out):
         pd.Series(stats['missingness'],name='missing_fraction').rename_axis('column').to_csv(out/f'{key}_missingness.csv')
     pd.DataFrame(inventory).to_csv(out/'dataset_inventory.csv',index=False)
     if 'demographics' not in datasets: raise PipelineError('Demographics unavailable: cohort-dependent analyses cannot run.')
-    cohort=build_cohort(datasets['demographics'],report)
+    # Patient-set intersections do not require a resolved anchor.
+    demographic_ids = set(datasets['demographics'].patient.dropna())
+    intersections = []
+    for key, data in datasets.items():
+        ids = set(data.patient.dropna())
+        intersections.append({'dataset':key, 'source_patients':len(ids),
+            'demographic_patients':len(demographic_ids), 'intersection_patients':len(ids & demographic_ids),
+            'outside_demographics_patients':len(ids-demographic_ids),
+            'demographic_patients_without_records':len(demographic_ids-ids),
+            'outside_demographics_rows':int((data.patient.notna() & ~data.patient.isin(demographic_ids)).sum()),
+            'missing_patient_id_rows':int(data.patient.isna().sum())})
+    pd.DataFrame(intersections).to_csv(out/'patient_set_intersections.csv',index=False)
+    report.data['completed_modules'].append('patient_set_intersections')
+    cohort=build_cohort(datasets['demographics'],report,config,out)
     features=cohort.set_index('patient').copy()
     metrics=[]; coverage=[]
     for key,data in datasets.items():

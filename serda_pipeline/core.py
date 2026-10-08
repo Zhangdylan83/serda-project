@@ -68,6 +68,11 @@ def load_dataset(key, root, config, report):
              'row_count': len(frame), 'duplicate_rows': int(frame.duplicated().sum()),
              'missingness': {c: float(frame[c].isna().mean()) for c in frame}, 'date_parsing_failures': {}}
     report.data['datasets'][key] = stats
+    # Basic patient profiling remains available even when clinical fields fail mapping.
+    if 'patient' in mapping:
+        ids = frame[mapping['patient']].str.strip()
+        stats['missing_patient_ids'] = int(ids.isna().sum())
+        stats['unique_patients'] = int(ids.nunique())
     if ambiguous: raise PipelineError('Ambiguous columns: ' + ', '.join(ambiguous))
     absent = set(REQUIRED[key]) - set(mapping)
     if absent: raise PipelineError('Required columns missing: ' + ', '.join(sorted(absent)))
