@@ -1,0 +1,19 @@
+# All paths are supplied at execution. No patient data belongs in this file.
+lookback_days: 365
+baseline_tolerance_days: 90
+followup_tolerance_days: 60
+# Numeric dates are interpreted as Excel serial dates only in this range.
+excel_date_min: 20000
+excel_date_max: 80000
+dayfirst: false
+# Set true only when an output directory containing prior outputs is intended.
+overwrite: false
+# For ambiguous files/sheets/headers, supply exact observed values here.
+files: {}
+sheets: {}
+header_rows: {}
+columns: {}
+# Example structure: columns: {medications: {medication: "EXACT REAL HEADER"}}
+# Units must be verified from actual exports; no default unit assumptions.
+weight_units: {kg: 1.0, kilogram: 1.0, kilograms: 1.0, lb: 0.45359237, lbs: 0.45359237, pounds: 0.45359237}
+height_units: {cm: 0.01, centimeters: 0.01, m: 1.0, meters: 1.0, in: 0.0254, inches: 0.0254}

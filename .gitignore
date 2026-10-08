@@ -1,0 +1,15 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+.aws/
+.codex/
+.agents/
+data/
+outputs/
+*.xlsx
+*.xlsm
+*.xls
+*.csv
