@@ -13,3 +13,11 @@ outputs/
 *.xlsm
 *.xls
 *.csv
+notes_reconstructed_text_SERDA_only.jsonl
+.notes-stage-*/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.notes-merge.tmp
+notes_*.png

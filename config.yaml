@@ -25,3 +25,18 @@ cohort_anchor_policy: strict_timestamp
 temporal_granularity: timestamp  # calendar_day changes distances, not eligibility after anchor
 # Use pre_anchor_date_only when event timing on the anchor day is insufficient.
 anchor_day_policy: at_or_before_timestamp
+
+# Notes is an eighth AUDIT ONLY dataset; no change to clinical predictors/cohort.
+# Also supports files.notes, sheets.notes, header_rows.notes, columns.notes.
+notes:
+  # Configure mapped field names only AFTER verifying the export's note granularity.
+  # Example only: [note_id] when NOTE_ID is confirmed as the note identifier.
+  # NOTE_CSN alone is not assumed to identify a unique note.
+  note_key_fields: []
+  note_key_verified: false
+  line_start: 1  # confirm 0 vs 1 locally; contiguous lines do not prove no missing tail
+  encounter_linkage_verified: false  # needed for a custom encounter field/NOTE_CSN mapping
+  export_reconstructed_text: false  # optional PHI JSONL in approved SERDA output only
+  batch_rows: 1000
+  max_fragments_per_note: 100000
+  max_note_characters: 5000000
