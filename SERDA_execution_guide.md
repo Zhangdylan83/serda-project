@@ -217,3 +217,46 @@ The last two quoted values are placeholders, not claims that these are real head
 5. `mrn_temporal_summary.csv`, `Data_Audit_Summary.md` and `execution_report.json`: examine MRN-linked event timing, missing dates, module failures and the dedicated **MRN-Based Patient Linkage Validation** section. Patient-level temporal diagnostics exclude MRNs with multiple or insufficient Demographics anchor timestamps from a single-point timing calculation; they do not exclude those patients from set intersection or resolve their anchors.
 
 The MRN pass stores only identifiers, dates and audit flags in a temporary SQLite stage under the approved output folder. The original Notes audit handles NOTE_TEXT and reconstruction. An interrupted run can leave `.mrn-stage-*` or `.notes-stage-*` folders requiring local review. Keep those folders, all CSVs, reports, figures, MRNs, identifiers and clinical outputs inside SERDA. Do not upload results to GitHub. These code changes have not been validated on the real clinical workbooks outside SERDA and no real MRN/overlap outcome is asserted here.
+
+## Independent rule-based GA extraction
+
+This mode reads only Frailty Demographics and Notes.xlsx. It does not run the eight-dataset EDA, change predictor features, generate frailty labels or overwrite prior audit outputs. It stages note fragments in a temporary SQLite folder inside the approved extraction output; interruption may leave `.ga-stage-*` with PHI for local SERDA review.
+
+First inspect actual Notes headers locally using the existing `--notes-audit-only` command and `execution_report.json`. Verify the real note identifier and version granularity with Erika or export documentation; `NOTE_CSN`/`CSN_ID` alone is not proof. Create a separate SERDA-only config copied from `config.yaml` with verified mappings, for example **only if those actual fields and meanings are confirmed**:
+
+```yaml
+files:
+  notes: "Notes.xlsx"
+sheets:
+  notes: "<actual sheet name>"
+header_rows:
+  notes: 0
+columns:
+  notes:
+    note_csn: "<actual CSN column, if used>"
+    note_id: "<verified true note identifier, if present>"
+    author: "<actual author field, if present>"
+    mrn: "<actual direct MRN field>"
+  demographics:
+    mrn: "<actual direct MRN field>"
+notes:
+  note_key_fields: [note_id]
+  note_key_verified: true
+  line_start: 1
+ga_extraction:
+  fragment_join: newline
+  note_type_patterns: ["geriatric\\s+oncology\\s+initial\\s+consult(?:ation)?"]
+  template_patterns: ["geriatric\\s+components?"]
+```
+
+The example is illustrative, not a claim about real headers or the right grouping key. Merge these values into the existing config rather than replacing its other settings. If unique note identity is unverified, leave verification false: the command emits candidate-group quality audits, extracts no values and reports `audit_only_identity_unverified` (exit code 2). If the direct patient key or Demographics date is absent, it reports a schema failure. Do not set `note_key_verified: true` merely to bypass the guard. Confirm whether fragments require a newline, literal space or no separator. A repeated identical LINE is de-duplicated for reconstruction; conflicting, missing, nonnumeric, gapped or out-of-order LINEs are flagged. Source-order inversions are excluded conservatively. Contiguous lines cannot prove the last line is present.
+
+Run in Windows SERDA CPU with a **new empty** approved output root:
+
+```powershell
+python run_pipeline.py --data-dir "Z:\PHI" --output-dir "<new approved SERDA GA output root>" --config "<verified SERDA GA config.yaml>" --ga-extraction-only --patient-key mrn
+```
+
+For a verified direct PAT_ID export, use `--patient-key pat_id`. `--ga-output-subdir ga_run_2` changes only the new extraction subdirectory name. Do not point output into the source data directory or code checkout. A schema or configuration failure appears in `<output root>\ga_extraction\ga_execution_report.json` with no identifiers. The mode does not launch the expensive full pipeline.
+
+Review `ga_schema_validation.json`, `ga_note_selection_audit.csv`, `ga_ungroupable_fragments_SERDA_ONLY.csv`, `ga_domain_coverage.csv`, `ga_extracted_scores.csv`, `ga_extraction_review_queue.csv`, `ga_extraction_summary.md` and `ga_execution_report.json`. All record-level CSVs contain identifiers or evidence and must stay inside SERDA. Exact date matching and Anchor=Yes are required; a configured type plus GA template gives rule-confirmed selection, while one gives candidate selection. This is **not** expert confirmation. Historical values, conflicting values and unsupported formats go to review. Mention coverage is not extraction accuracy. No accuracy metric can be reported until reference annotations are available. Confirm Erika's intended note type/template, author and version rules, Anchor meaning, score formats and previous-score language before interpreting the output clinically.

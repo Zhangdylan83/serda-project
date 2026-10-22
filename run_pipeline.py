@@ -54,6 +54,8 @@ def main():
     parser.add_argument('--cohort-anchor-policy', choices=['strict_timestamp','calendar_day','exclude_ambiguous_for_eda'])
     parser.add_argument('--anchor-day-policy', choices=['at_or_before_timestamp','pre_anchor_date_only'])
     parser.add_argument('--notes-audit-only', action='store_true', help='Audit Notes and original Demographics only; no cohort selection or clinical feature engineering.')
+    parser.add_argument('--ga-extraction-only', action='store_true', help='Run only conservative Notes GA extraction; no existing audit or predictor outputs are written.')
+    parser.add_argument('--ga-output-subdir', default='ga_extraction', help='New extraction-only subdirectory within output-dir.')
     parser.add_argument('--patient-key', choices=['pat_id','mrn'], default='pat_id',
                         help='Add an MRN linkage audit alongside the unchanged structured analysis; default reproduces PAT_ID audit.')
     args=parser.parse_args()
@@ -71,6 +73,30 @@ def main():
     code_directory=Path(__file__).resolve().parent
     if out==code_directory or code_directory in out.parents:
         parser.error('output-dir must be outside the code repository to keep clinical results out of Git')
+    if args.ga_extraction_only:
+        import json
+        from serda_pipeline.ga_extraction import run as run_ga
+        if args.notes_audit_only: parser.error('--ga-extraction-only and --notes-audit-only are mutually exclusive')
+        subdir=Path(args.ga_output_subdir)
+        if subdir.is_absolute() or len(subdir.parts)!=1 or subdir.name in {'', '.', '..'}:
+            parser.error('--ga-output-subdir must be one new directory name')
+        ga_out=out/subdir
+        if ga_out.exists() and any(ga_out.iterdir()):
+            parser.error('GA extraction directory is not empty; choose a new output directory or subdirectory')
+        ga_out.mkdir(parents=True,exist_ok=True)
+        try:
+            counts=run_ga(root,ga_out,config,args.patient_key)
+            audit_only=not counts.get('identity_verified',False)
+            status={'status':'audit_only_identity_unverified' if audit_only else 'completed',
+                    'selection_counts':counts,
+                    'reason':'Candidate grouping audited; no note reconstructed or GA value extracted until note identity is verified.' if audit_only else None,
+                    'real_data_validation':'Only the execution environment can establish whether real SERDA files were used.'}
+        except Exception as exc:
+            status={'status':'failed','reason':str(exc) if isinstance(exc,core.PipelineError)
+                    else f'{type(exc).__name__}: GA extraction failed; inspect configuration and local logs.'}
+        (ga_out/'ga_execution_report.json').write_text(json.dumps(status,indent=2),encoding='utf-8')
+        print('GA extraction status: '+status['status']+'; see ga_execution_report.json in the configured SERDA output.')
+        return 0 if status['status']=='completed' else 2
     if out.exists() and any(out.iterdir()) and (args.patient_key == 'mrn' or not config.get('overwrite',False)):
         parser.error('output-dir is not empty; choose a new run directory')
     if not args.notes_audit_only:

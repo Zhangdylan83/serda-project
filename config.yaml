@@ -46,3 +46,16 @@ notes:
   batch_rows: 1000
   max_fragments_per_note: 100000
   max_note_characters: 5000000
+
+# Optional --ga-extraction-only mode. Verify note identity and actual headers
+# inside SERDA before enabling notes.note_key_verified above. The patterns are
+# conservative candidate-selection rules, not a clinician-approved schema.
+ga_extraction:
+  fragment_join: newline  # newline, space, or none; confirm export semantics
+  validated_denominators: {}  # populate only after Erika confirms instrument versions/ranges
+  note_type_patterns:
+    - "geriatric\\s+oncology\\s+initial\\s+consult(?:ation)?"
+    - "geriatric\\s+assessment"
+  template_patterns:
+    - "geriatric\\s+components?"
+    - "geriatric\\s+assessment"

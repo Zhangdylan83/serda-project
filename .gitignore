@@ -16,6 +16,7 @@ outputs/
 notes_reconstructed_text_SERDA_only.jsonl
 .notes-stage-*/
 .mrn-stage-*/
+.ga-stage-*/
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
