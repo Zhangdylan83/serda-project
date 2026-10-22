@@ -171,3 +171,49 @@ LINE ordering is numeric and uses configured line_start (confirm 0 versus 1). Id
 Use adequate approved disk space for staging the approximately 200 MB Notes workbook. A read-only openpyxl iterator processes bounded batches, while exact-row duplicate checks and note grouping use SQLite under the approved output. Uncompressed text/indexes can exceed compressed workbook size by several times. openpyxl retains some workbook metadata/shared strings, so memory is not strictly constant. Temporary stages close/delete after handled failures; process interruption may leave `.notes-stage-*` folders. Review/delete them locally according to SERDA rules. All CSVs, Markdown/JSON clinical summaries, figures, staging data, identifiers and reconstructed note text must remain in SERDA and must never be pushed to GitHub.
 
 No Notes clinical file has been analyzed outside SERDA. Local validation covers header-only workbooks, empty schemas, validation and failure isolation without fabricated clinical records. Test the actual headers, linkage, LINE start, note identity, reconstructed text and Anchor meaning inside SERDA before using results. No Frailty Label generation or predictor changes are included.
+
+## MRN linkage validation after Erika's guidance
+
+Run the full eight-dataset MRN audit into a **new empty approved SERDA output directory**. Keep all existing verified file, sheet, header, medication, and Notes settings in config.yaml:
+
+```powershell
+python run_pipeline.py --data-dir "Z:\PHI" --output-dir "<new approved SERDA MRN full-audit directory>" --config config.yaml --patient-key mrn --cohort-anchor-policy exclude_ambiguous_for_eda --anchor-day-policy pre_anchor_date_only
+```
+
+`--patient-key mrn` always requires a new empty output directory, regardless of the `overwrite` setting. It runs the existing structured and Notes audits, then reads all eight files for the MRN audit. The existing structured/feature outputs keep their PAT_ID baseline meaning. The `mrn_*.csv` tables are authoritative for MRN patient counts, coverage and anchor comparisons. Clinical features, labels and cohort membership are not altered. Structured module failures, including unresolved medication clinical columns, do not prevent a separate MRN scan if that workbook and its MRN header can be read.
+
+Run Demographics and Notes alone if Anchor validation is the immediate priority:
+
+```powershell
+python run_pipeline.py --data-dir "Z:\PHI" --output-dir "<new approved SERDA MRN Notes-audit directory>" --config config.yaml --patient-key mrn --notes-audit-only
+```
+
+This command cannot assess all-eight coverage; it marks the other six datasets and all-eight intersection unavailable. Reproduce the previous PAT_ID audit separately by omitting `--patient-key` or setting `--patient-key pat_id`. Every MRN run recomputes its PAT_ID comparison from the same workbook versions, rather than reading or overwriting the earlier PAT_ID run.
+
+### Discover and validate each MRN column locally
+
+Inspect `mrn_schema_validation.csv` for all eight actual headers, selected MRN field, alternatives, file/sheet/header choices, missing values, numeric cell counts, conflicts and date parsing. Prefer `PAT_MRN_ID` if present and locally confirmed. Other recognized names include `MRN`, `PAT_MRN`, `PATIENT_MRN`, `PATIENT_MRN_ID`, `MRN_ID`, `MEDICAL_RECORD_NUMBER`, and `MEDICAL_RECORD_NUM`. Use each workbook's actual header; do not assume names match across exports. When necessary, add exact local overrides under the existing `columns` section, for example:
+
+```yaml
+columns:
+  demographics:
+    mrn: "PAT_MRN_ID"
+  notes:
+    mrn: "EXACT VERIFIED NOTES MRN HEADER"
+  medications:
+    mrn: "EXACT VERIFIED MEDICATIONS MRN HEADER"
+mrn_audit:
+  batch_rows: 2000
+```
+
+The last two quoted values are placeholders, not claims that these are real headers. Preserve any other `columns`, `files`, `sheets`, and `header_rows` settings already verified in SERDA. Confirm MRN meaning with Erika/export metadata before interpreting patient counts. PAT_ID and NOTE_CSN are never substituted for a missing MRN. If both PAT_MRN_ID and another MRN-like field exist, the preferred field is selected and row-level disagreements are counted and withheld. Blank preferred values are not filled from alternatives. Text values retain leading zeros and case; surrounding whitespace is trimmed and counted. Numeric Excel MRN cells are withheld because their original formatting may be unrecoverable. Invalid/ambiguous headers and files are reported as failed scans.
+
+### Review order
+
+1. `mrn_schema_validation.csv` and `mrn_patient_mapping_audit.csv`: establish which datasets have usable direct MRNs, how many rows/PAT_ID groups lack them, where multiple PAT_IDs share an MRN, where a PAT_ID spans MRNs, and whether case/numeric-cell issues affect comparison. `mrn_patient_mapping_detail_SERDA_ONLY.csv` contains identifiers and stays inside SERDA.
+2. `mrn_dataset_inventory.csv`, `mrn_patient_intersections.csv`, `mrn_coverage_comparison.csv`, and `mrn_pairwise_intersections.csv`: compare unique MRNs, Demographics coverage, outside-reference patients, missing reference patients, pairwise Jaccard overlap, possible case-only discrepancies, and patients present in all eight. Compare with `mrn_vs_pat_id_comparison.csv`; blank unavailable counts are not zero. The prior 2,690 PAT_ID patients are a check on the rerun, not an assumed MRN count. Improved overlap is measured; patient sets are never forced to agree. “Approximately the same” has no preset cutoff, so report actual fractions and discuss the acceptable threshold locally.
+3. `mrn_anchor_alignment_summary.csv` and `mrn_multiple_anchor_summary.csv`: compare original PAT_ID and new MRN numbers of unique-day, multiple-day and missing-date Demographics anchors; inspect how the previously ambiguous PAT_ID cases map to MRNs. `mrn_anchor_patient_detail_SERDA_ONLY.csv` preserves identifier-level transitions locally. Nothing selects a visit or changes the cohort.
+4. In those anchor summaries, inspect Notes Anchor=Yes row date matches, no matches, multiple candidate note keys, and validated-note counts when available. Candidate NOTE_CSN groups do not prove unique notes. Validated-note counts require the original Notes reconstruction audit to verify the configured key; MRN auditing does not alter that process. `mrn_notes_anchor_patient_detail_SERDA_ONLY.csv` is local. The clinical meaning of Anchor=Yes still needs confirmation.
+5. `mrn_temporal_summary.csv`, `Data_Audit_Summary.md` and `execution_report.json`: examine MRN-linked event timing, missing dates, module failures and the dedicated **MRN-Based Patient Linkage Validation** section. Patient-level temporal diagnostics exclude MRNs with multiple or insufficient Demographics anchor timestamps from a single-point timing calculation; they do not exclude those patients from set intersection or resolve their anchors.
+
+The MRN pass stores only identifiers, dates and audit flags in a temporary SQLite stage under the approved output folder. The original Notes audit handles NOTE_TEXT and reconstruction. An interrupted run can leave `.mrn-stage-*` or `.notes-stage-*` folders requiring local review. Keep those folders, all CSVs, reports, figures, MRNs, identifiers and clinical outputs inside SERDA. Do not upload results to GitHub. These code changes have not been validated on the real clinical workbooks outside SERDA and no real MRN/overlap outcome is asserted here.

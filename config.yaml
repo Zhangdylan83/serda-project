@@ -26,6 +26,12 @@ temporal_granularity: timestamp  # calendar_day changes distances, not eligibili
 # Use pre_anchor_date_only when event timing on the anchor day is insufficient.
 anchor_day_policy: at_or_before_timestamp
 
+# --patient-key mrn adds a separate MRN linkage audit. The default PAT_ID
+# pipeline, feature table, and cohort definition are unchanged.
+# MRN column overrides use columns.<dataset>.mrn; never map this to PAT_ID.
+mrn_audit:
+  batch_rows: 2000
+
 # Notes is an eighth AUDIT ONLY dataset; no change to clinical predictors/cohort.
 # Also supports files.notes, sheets.notes, header_rows.notes, columns.notes.
 notes:

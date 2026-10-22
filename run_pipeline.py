@@ -22,6 +22,8 @@ def write_reports(out, report, cohort_count=None, temporal=None):
             f'Note identity verified locally: {notes.get("note_identity_verified_by_local_configuration", False)}. Unique reconstructed notes: {notes.get("unique_reconstructed_notes", "unavailable")}.',
             'Review notes_inventory.csv, notes_reconstruction_quality.csv, notes_patient_intersections.csv, notes_anchor_alignment_summary.csv and notes_multiple_anchor_summary.csv. Candidate groups are not validated notes.',
             'All patient audits and optional reconstructed text must stay inside SERDA.'])
+    if report.data.get('mrn_audit_lines'):
+        lines.extend([''] + report.data['mrn_audit_lines'])
     lines.extend(['','## Temporal findings'])
     for row in temporal or []:
         lines.append(f'- {row["dataset"]}: {row["lookback_records"]} look-back records; {row["post_anchor_records"]} post-anchor records; {row["unknown_date_records"]} records without valid dates.')
@@ -52,10 +54,13 @@ def main():
     parser.add_argument('--cohort-anchor-policy', choices=['strict_timestamp','calendar_day','exclude_ambiguous_for_eda'])
     parser.add_argument('--anchor-day-policy', choices=['at_or_before_timestamp','pre_anchor_date_only'])
     parser.add_argument('--notes-audit-only', action='store_true', help='Audit Notes and original Demographics only; no cohort selection or clinical feature engineering.')
+    parser.add_argument('--patient-key', choices=['pat_id','mrn'], default='pat_id',
+                        help='Add an MRN linkage audit alongside the unchanged structured analysis; default reproduces PAT_ID audit.')
     args=parser.parse_args()
     from serda_pipeline import core
     from serda_pipeline.analysis import execute, finalize_figure_status
     from serda_pipeline.notes import audit_notes
+    from serda_pipeline.mrn_audit import audit_mrn
     config=yaml.safe_load(args.config.read_text(encoding='utf-8'))
     if args.cohort_anchor_policy: config['cohort_anchor_policy'] = args.cohort_anchor_policy
     if args.anchor_day_policy: config['anchor_day_policy'] = args.anchor_day_policy
@@ -63,7 +68,10 @@ def main():
     if not root.is_dir(): parser.error('data-dir must be an existing directory')
     if out==root or root in out.parents or out in root.parents:
         parser.error('output-dir must be separate from and not contain data-dir')
-    if out.exists() and any(out.iterdir()) and not config.get('overwrite',False):
+    code_directory=Path(__file__).resolve().parent
+    if out==code_directory or code_directory in out.parents:
+        parser.error('output-dir must be outside the code repository to keep clinical results out of Git')
+    if out.exists() and any(out.iterdir()) and (args.patient_key == 'mrn' or not config.get('overwrite',False)):
         parser.error('output-dir is not empty; choose a new run directory')
     if not args.notes_audit_only:
         if config['lookback_days'] <= 0: parser.error('lookback_days must be positive')
@@ -84,6 +92,7 @@ def main():
     report.data['provisional'] = config.get('cohort_anchor_policy') == 'exclude_ambiguous_for_eda'
     report.data['cohort_status'] = ('PROVISIONAL EDA ONLY; not the final validated research cohort.' if report.data['provisional'] else 'Strict cohort checks; research validation still required.')
     report.data['notes_audit_only'] = args.notes_audit_only
+    report.data['patient_key'] = args.patient_key
     if args.notes_audit_only:
         report.data['cohort_status'] = 'Notes audit only; all original Demographics anchors retained; no clinical cohort selected.'
     try:
@@ -107,6 +116,8 @@ def main():
             report.skip('cohort_analysis','--notes-audit-only: structured EDA not requested.')
         # Separate pass after structured results; Notes never enters execute()/predictors.
         audit_notes(root,config,report,out,datasets.get('demographics'))
+        if args.patient_key == 'mrn':
+            audit_mrn(root,config,report,out,notes_only=args.notes_audit_only)
     finally:
         if not args.notes_audit_only: finalize_figure_status(report,out)
         else: report.data['figure_files'] = sorted(p.name for p in (out/'figures').glob('*.png'))

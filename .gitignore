@@ -15,9 +15,16 @@ outputs/
 *.csv
 notes_reconstructed_text_SERDA_only.jsonl
 .notes-stage-*/
+.mrn-stage-*/
 *.sqlite
 *.sqlite-journal
 *.sqlite-wal
 *.sqlite-shm
 *.notes-merge.tmp
 notes_*.png
+figures/
+execution_report.json
+data_quality_report.md
+EDA_summary.md
+Data_Audit_Summary.md
+slide_ready_findings.md
