@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 from openpyxl import Workbook
 from serda_pipeline import ga_extraction as ga, ga_validation as validation
 from serda_pipeline import notes, mrn_audit
-from serda_pipeline.core import Report
+from serda_pipeline.core import Report, PipelineError
 
 
 class GroupingAuditTests(unittest.TestCase):
@@ -59,6 +59,36 @@ class GroupingAuditTests(unittest.TestCase):
         self.assertEqual(schema['note_reconstruction']['source_columns'],['NOTE_CSN'])
         self.assertEqual(schema['patient_linkage']['source_column'],'PAT_MRN_ID')
         self.assertEqual(schema['cross_patient_consistency']['pat_id_column'],'PAT_ID')
+
+    def test_serda_aliases_work_without_column_overrides(self):
+        self.headers[3]='NOTE_CSN_ID'
+        self.headers[9]='SERVICE_NAME'
+        self.workbooks([self.row()])
+        self.assertEqual(len(self.execute()),1)
+        schema=json.loads((self.out/'ga_linkage_schema.json').read_text())
+        self.assertEqual(schema['note_reconstruction']['source_columns'],['NOTE_CSN_ID'])
+        self.assertEqual(schema['note_reconstruction']['status'],'explicit_candidate_key')
+        self.assertEqual(schema['department_column'],'SERVICE_NAME')
+        self.assertEqual(mrn_audit._discover(self.headers,'notes',self.config)['note_fields']['note_csn'],3)
+        with closing(sqlite3.connect(':memory:')) as db:
+            stats,_,_,_=notes.ingest(db,self.root,self.config,Report(),self.out)
+            self.assertEqual(stats['column_mapping']['note_csn'],'NOTE_CSN_ID')
+            self.assertEqual(db.execute('SELECT COUNT(*) FROM fragments WHERE key IS NOT NULL').fetchone()[0],1)
+
+    def test_alias_collisions_require_explicit_mapping(self):
+        headers=['NOTE_CSN','NOTE_CSN_ID']
+        _,mapping,ambiguous,_=notes.schema_mapping(headers,{})
+        self.assertNotIn('note_csn',mapping)
+        self.assertIn('note_csn',ambiguous)
+        self.assertIsNone(mrn_audit._discover(headers,'notes',{})['note_fields']['note_csn'])
+        config={'columns':{'notes':{'note_csn':'NOTE_CSN_ID'}}}
+        self.assertEqual(notes.schema_mapping(headers,config)[1]['note_csn'],1)
+        self.assertEqual(mrn_audit._discover(headers,'notes',config)['note_fields']['note_csn'],1)
+        self.headers.append('SERVICE_NAME')
+        self.workbooks([self.row()+['SERVICE_TEST']])
+        with self.assertRaises(PipelineError): self.execute()
+        self.config['columns']={'notes':{'department':'SERVICE_NAME'}}
+        self.assertEqual(len(self.execute()),1)
 
     def test_no_implicit_note_id_fallback_or_empty_key_group(self):
         self.config['notes']['note_key_fields']=[]

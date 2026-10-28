@@ -116,7 +116,7 @@ def _discover(headers, dataset, config):
     note_type=_field_index(names,[overrides['note_type']] if 'note_type' in overrides else ['NOTE_TYPE']) if dataset=='notes' else None
     note_fields={}
     if dataset=='notes':
-        for key,aliases in {'note_id':['NOTE_ID'],'note_csn':['NOTE_CSN'],
+        for key,aliases in {'note_id':['NOTE_ID'],'note_csn':['NOTE_CSN','NOTE_CSN_ID'],
                             'encounter':['PAT_ENC_CSN_ID'],'line':['LINE']}.items():
             note_fields[key]=_field_index(names,[overrides[key]] if key in overrides else aliases)
     return {'headers':names,'patient':patient,'mrn':primary,'alternatives':alternatives,

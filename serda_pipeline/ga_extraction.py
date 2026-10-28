@@ -280,7 +280,7 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
                 if author_override and author_col is None:
                     raise PipelineError('Configured columns.notes.author is absent.')
                 department_override = config.get('columns',{}).get('notes',{}).get('department')
-                department_aliases = [department_override] if department_override else ['SERVICE_DEPARTMENT','DEPARTMENT_NAME','SERVICE_DEPARTMENT_NAME']
+                department_aliases = [department_override] if department_override else ['SERVICE_DEPARTMENT','DEPARTMENT_NAME','SERVICE_DEPARTMENT_NAME','SERVICE_NAME']
                 department_matches = [i for i,h in enumerate(headers) if normalize(h) in {normalize(a) for a in department_aliases}]
                 if len(department_matches)>1 or (department_override and not department_matches):
                     raise PipelineError('Missing/ambiguous Notes department column; configure columns.notes.department.')

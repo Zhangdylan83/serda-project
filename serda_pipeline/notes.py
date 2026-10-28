@@ -21,7 +21,7 @@ from .schema import normalize
 
 FIELDS = {
     'patient': ['PAT_ID'], 'encounter': ['PAT_ENC_CSN_ID'],
-    'note_id': ['NOTE_ID'], 'note_csn': ['NOTE_CSN'], 'line': ['LINE'],
+    'note_id': ['NOTE_ID'], 'note_csn': ['NOTE_CSN', 'NOTE_CSN_ID'], 'line': ['LINE'],
     'date': ['NOTE_CONTACT_DATE'], 'text': ['NOTE_TEXT'],
     'note_type': ['NOTE_TYPE'], 'anchor_flag': ['Anchor'],
 }
