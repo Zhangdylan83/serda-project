@@ -55,6 +55,12 @@ def main():
     parser.add_argument('--anchor-day-policy', choices=['at_or_before_timestamp','pre_anchor_date_only'])
     parser.add_argument('--notes-audit-only', action='store_true', help='Audit Notes and original Demographics only; no cohort selection or clinical feature engineering.')
     parser.add_argument('--ga-extraction-only', action='store_true', help='Run only conservative Notes GA extraction; no existing audit or predictor outputs are written.')
+    validation = parser.add_mutually_exclusive_group()
+    validation.add_argument('--ga-validation-prepare', action='store_true')
+    validation.add_argument('--ga-validation-run', action='store_true')
+    validation.add_argument('--ga-validation-evaluate', action='store_true')
+    parser.add_argument('--ga-validation-label', default='baseline')
+    parser.add_argument('--ga-evaluation-name', default='evaluation')
     parser.add_argument('--ga-output-subdir', default='ga_extraction', help='New extraction-only subdirectory within output-dir.')
     parser.add_argument('--patient-key', choices=['pat_id','mrn'], default='pat_id',
                         help='Add an MRN linkage audit alongside the unchanged structured analysis; default reproduces PAT_ID audit.')
@@ -73,6 +79,19 @@ def main():
     code_directory=Path(__file__).resolve().parent
     if out==code_directory or code_directory in out.parents:
         parser.error('output-dir must be outside the code repository to keep clinical results out of Git')
+    if args.ga_validation_prepare or args.ga_validation_run or args.ga_validation_evaluate:
+        if args.notes_audit_only or args.ga_extraction_only:
+            parser.error('GA validation stages cannot be combined with other audit modes')
+        from serda_pipeline import ga_validation
+        try:
+            if args.ga_validation_prepare: ga_validation.prepare(root,out,config,args.patient_key)
+            elif args.ga_validation_run: ga_validation.run(out,args.ga_validation_label)
+            else: ga_validation.evaluate(out,args.ga_validation_label,args.ga_evaluation_name)
+        except Exception as exc:
+            print(str(exc) if isinstance(exc,core.PipelineError) else type(exc).__name__+': validation stage failed; no patient details logged.')
+            return 2
+        print('GA validation stage completed in the configured SERDA directory.')
+        return 0
     if args.ga_extraction_only:
         import json
         from serda_pipeline.ga_extraction import run as run_ga

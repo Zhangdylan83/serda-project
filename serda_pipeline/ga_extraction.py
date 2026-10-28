@@ -212,7 +212,7 @@ def reconstruct_fragments(rows, line_start=1, separator='\n'):
     return text, reasons, quality
 
 
-def run(root, output, config, patient_key='pat_id'):
+def run(root, output, config, patient_key='pat_id', review_callback=None):
     """Independent mode; leaves all original audit and predictor outputs untouched."""
     settings = config.get('ga_extraction', {})
     notes_settings = validate_settings(config)
@@ -248,7 +248,7 @@ def run(root, output, config, patient_key='pat_id'):
         with closing(sqlite3.connect(str(Path(stage)/'ga.sqlite'))) as db:
             db.execute('PRAGMA temp_store=FILE')
             db.execute('CREATE TABLE fragments (ordinal INTEGER, group_key TEXT, patient TEXT, day TEXT, note_type TEXT, flag TEXT, line INTEGER, raw_line TEXT, text TEXT, encounter TEXT, author TEXT, note_id TEXT, note_csn TEXT, note_timestamp TEXT)')
-            with _rows(path, 'notes', config) as (_, _, headers, stream):
+            with _rows(path, 'notes', config) as (source_sheet, header_row, headers, stream):
                 _, mapping, ambiguous, absent = schema_mapping(headers, config)
                 if ambiguous:
                     raise PipelineError('Ambiguous Notes columns: '+', '.join(ambiguous))
@@ -361,6 +361,12 @@ def run(root, output, config, patient_key='pat_id'):
                 type_match = bool(kind and any(p.search(kind) for p in type_patterns))
                 template_match = bool(text and any(p.search(text) for p in template_patterns))
                 evidence = ';'.join(name for name,yes in [('anchor_yes',flag=='Yes'),('reference_date',date_match),('note_type',type_match),('ga_template',template_match)] if yes)
+                if review_callback is not None:
+                    review_callback(dict(key=key, rows=rows, reasons=reasons,
+                        patient=patient, day=day, kind=kind, flag=flag,
+                        reference_days=sorted(dates), invalid_reference=patient in invalid_reference,
+                        source_file=path.name, source_sheet=source_sheet, header_row=header_row,
+                        separator=separator, line_start=notes_settings.get('line_start',1)))
                 if not identity_verified: status = 'excluded_identity_unverified'
                 elif reasons: status = 'excluded_reconstruction'
                 elif patient is None or not dates or patient in invalid_reference: status = 'excluded_linkage_or_reference'
@@ -375,6 +381,8 @@ def run(root, output, config, patient_key='pat_id'):
                     if status.startswith('ambiguous') or status in {'excluded_reconstruction','excluded_identity_unverified'}:
                         review.append([note_ref,patient,day,None,status,';'.join(reasons),None,None])
                     continue
+                if review_callback is not None:
+                    continue  # Prepare reviews reconstruction only; never run the extractor.
                 values, mentions = extract_text(text,validated_denominators)
                 note_mentions[note_ref] = mentions
                 resolved = resolve_evidence(values)

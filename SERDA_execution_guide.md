@@ -260,3 +260,37 @@ python run_pipeline.py --data-dir "Z:\PHI" --output-dir "<new approved SERDA GA 
 For a verified direct PAT_ID export, use `--patient-key pat_id`. `--ga-output-subdir ga_run_2` changes only the new extraction subdirectory name. Do not point output into the source data directory or code checkout. A schema or configuration failure appears in `<output root>\ga_extraction\ga_execution_report.json` with no identifiers. The mode does not launch the expensive full pipeline.
 
 Review `ga_schema_validation.json`, `ga_note_selection_audit.csv`, `ga_ungroupable_fragments_SERDA_ONLY.csv`, `ga_domain_coverage.csv`, `ga_extracted_scores.csv`, `ga_extraction_review_queue.csv`, `ga_extraction_summary.md` and `ga_execution_report.json`. All record-level CSVs contain identifiers or evidence and must stay inside SERDA. Exact date matching and Anchor=Yes are required; a configured type plus GA template gives rule-confirmed selection, while one gives candidate selection. This is **not** expert confirmation. Historical values, conflicting values and unsupported formats go to review. Mention coverage is not extraction accuracy. No accuracy metric can be reported until reference annotations are available. Confirm Erika's intended note type/template, author and version rules, Anchor meaning, score formats and previous-score language before interpreting the output clinically.
+
+## Small-sample GA validation: Prepare, Run, Evaluate
+
+Use the existing CPU Python environment and dependencies. Keep `notes.note_key_verified: false` unless its global contract was actually verified. Configure real file/sheet/header/key mappings as usual. Validation supports sample-scoped human approvals without changing that flag or any predictor output. `ga_validation.sample_size` defaults to 8 and permits 5–10; available candidates may be fewer. Replace the paths below with approved locations; the package directory must initially be new/empty and outside both the source folder and repository.
+
+```powershell
+python run_pipeline.py --data-dir "Z:\PHI" --output-dir "<approved SERDA storage>\ga_validation" --config config.yaml --patient-key mrn --ga-validation-prepare
+```
+
+Prepare scans Demographics and Notes through the existing GA loader. It writes `prepare_audit/`, `reconstruction_audit.csv`, full candidate note JSON files with raw rows and character mappings in `candidates/`, `sample_manifest.csv`, `support_registry.csv`, `reference_annotations.csv`, `run_manifest.json`, `review.html` and `blocked_review.html`. The blocked HTML shows at most ten blocked groups; the reconstruction CSV and candidate files retain the full audit. Gaps and source-order inversions are questions for human review; proposed text is numerically ordered with the configured fragment separator, without filling gaps. Conflicting patient/date/type/author/note identifiers or same-LINE text remain hard blocks. Complete-looking LINE sequences do not establish document boundaries or terminal completeness.
+
+Selection uses different patients first, then template and historical/score-layout variation, never successful extraction. Author metadata is shown when present; template diversity alone is not evidence of different doctors. The manifest fixes membership and ordering; Prepare refuses to replace it. Source SHA-256 fingerprints, code hashes, config, candidate hashes and registry are frozen. `local.*` support paths are provisional and are not Erika schema mappings. Generic GDS denominator/version must be clinically reviewed.
+
+Open `review.html` offline in SERDA. Inspect the full text and raw rows. In `sample_manifest.csv`, only edit `identity_approved`, `reconstruction_approved`, `target_ga_approved`, `reviewer`, and `review_comment`. Set the three approvals to `yes` only for the reviewed sample. Multiple source Anchor dates require an explicit target-note human decision; approval does not change the cohort. If no reliable document boundary can be confirmed, leave approvals `no` and retain the reconstruction audit. Do not mark groups approved merely to generate predictions.
+
+Fill `reference_annotations.csv` independently: `documented`, `not_documented`, `unclear`, or `not_reviewed`; documented fields require value, verbatim supporting evidence and reviewer. Leave a denominator blank when absent in the text. Mark `needs_erika_review=yes` for clinical questions. Do not change sample IDs or field paths. Read full notes before revealing CPU predictions to reduce anchoring bias.
+
+After reviewing reconstruction, freeze the original extractor run:
+
+```powershell
+python run_pipeline.py --data-dir "Z:\PHI" --output-dir "<approved SERDA storage>\ga_validation" --config config.yaml --ga-validation-run --ga-validation-label baseline
+```
+
+Run reads frozen candidate texts/config, not a new sample; it refuses baseline if extractor source changed since Prepare. Unapproved samples get blocked rows. It creates `baseline/predictions.csv` (one row per sample/field), `raw_extractor_output.json`, the approval snapshot, version manifest and `review.html`. Evidence comes directly from extractor matches, with original-text offsets and Excel rows; all raw candidates are preserved. Expand the CPU section only after writing provisional references. These HTML files have no external fonts, scripts or network resources and contain PHI.
+
+Compare the human references:
+
+```powershell
+python run_pipeline.py --data-dir "Z:\PHI" --output-dir "<approved SERDA storage>\ga_validation" --config config.yaml --ga-validation-evaluate --ga-validation-label baseline
+```
+
+This creates `baseline/evaluation/` with `reference_snapshot.csv`, `evaluation_by_field.csv`, `error_cases.csv`, an evaluation manifest and limitations. Exact values and explicitly recorded denominators are compared as strings (no clinical unit/score inference). Error categories distinguish missed values, false extraction, wrong value/denominator, unsupported documented content, unresolved values, blocked records and pending clinical review. No overall accuracy or population precision/recall is asserted. Later reference revisions use `--ga-evaluation-name review2` and never overwrite earlier references/results.
+
+Only after reviewing baseline may rules be revised. Use the same frozen samples and `--ga-validation-label revised` for Run and Evaluate; results remain separate. The same development samples cannot become an independent test set. Do not upload any generated package file, even HTML or aggregate results, outside SERDA. Actual runtime, schema, template diversity, complete-note identity and extraction performance still require real-data execution and Erika's review.

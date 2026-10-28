@@ -59,3 +59,8 @@ ga_extraction:
   template_patterns:
     - "geriatric\\s+components?"
     - "geriatric\\s+assessment"
+
+# Optional three-stage SERDA-only development review; sample approvals are local
+# to sample_manifest.csv and never enable global notes.note_key_verified.
+ga_validation:
+  sample_size: 8
