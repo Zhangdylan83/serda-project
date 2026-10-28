@@ -202,11 +202,12 @@ def ingest(db, root, config, report, out):
         # Ambiguous fields are deliberately unmapped; raw inventory remains possible.
         if ambiguous: report.issue('notes_schema', 'Ambiguous mapped fields unavailable: ' + ', '.join(ambiguous))
         if absent: report.issue('notes_schema', 'Unmapped Notes fields (not assumed present): ' + ', '.join(absent))
-        candidate_keys = settings.get('note_key_fields', []) or (['note_id'] if 'note_id' in mapping else ['note_csn'])
+        candidate_keys = settings.get('note_key_fields', [])  # Explicit export granularity; never prefer a column just because it exists.
         verified = bool(settings.get('note_key_verified', False))
         if any(key not in mapping for key in candidate_keys): verified = False
         if settings.get('note_key_verified') and not verified:
             report.fail('notes_identity', 'A configured verified key field is missing or ambiguous; reconstruction withheld.')
+        if not candidate_keys: report.issue('notes_identity', 'No explicit notes.note_key_fields; raw row audit continues but no candidate text groups are assumed.')
         stats['note_key_fields'] = candidate_keys
         stats['note_identity_verified_by_local_configuration'] = verified
         stats['mapped_fields_missing_rows'] = Counter()
@@ -231,7 +232,7 @@ def ingest(db, root, config, report, out):
                 entry['day'] = None if pd.isna(date) else date.strftime('%Y-%m-%d')
                 # Date component of a configured key uses parsed timestamp, never invalid raw dates.
                 key_values = [entry['parsed_date'] if k == 'date' else entry.get(k) for k in candidate_keys]
-                key = json.dumps(key_values, ensure_ascii=False) if all(v is not None for v in key_values) else None
+                key = json.dumps(key_values, ensure_ascii=False) if candidate_keys and all(v is not None for v in key_values) else None
                 db.execute('INSERT INTO fragments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                     (entry['ordinal'], key, entry['patient'], entry['encounter'], None, None,
                      entry['note_id'], entry['note_csn'], line_number(entry['line']), entry['line'],

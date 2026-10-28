@@ -37,7 +37,7 @@ def version():
     base = Path(__file__).resolve().parent
     try: commit = subprocess.check_output(['git','rev-parse','HEAD'], cwd=base, text=True, stderr=subprocess.DEVNULL).strip()
     except (OSError, subprocess.CalledProcessError): commit = 'unavailable'
-    return dict(commit=commit, source_sha256={p.name:digest(p) for p in [base/'ga_extraction.py',base/'ga_validation.py',base/'ga_review_report.py',base/'notes.py',base/'mrn_audit.py',base/'core.py']}, utc=datetime.now(timezone.utc).isoformat())
+    return dict(commit=commit, source_sha256={p.name:digest(p) for p in [base/'ga_extraction.py',base/'note_grouping.py',base/'ga_validation.py',base/'ga_review_report.py',base/'notes.py',base/'mrn_audit.py',base/'core.py']}, utc=datetime.now(timezone.utc).isoformat())
 
 
 def registry():
@@ -55,7 +55,7 @@ def registry():
 def candidate(group):
     rows = group['rows']
     internal = hashlib.sha256(group['key'].encode()).hexdigest()
-    _, issues, _ = ga.reconstruct_fragments([(r[0],r[5],r[6],r[7]) for r in rows],group['line_start'],group['separator'])
+    _, issues, quality = ga.reconstruct_fragments([(r[0],r[5],r[6],r[7]) for r in rows],group['line_start'],group['separator'])
     hard = [x for x in group['reasons'] if x not in {'identity_unverified_candidate_group_only','line_gap_or_start','out_of_order_lines'}]
     hard += [x for x in issues if x not in {'line_gap_or_start','out_of_order_lines'}]
     # Gaps/order are review questions, not a conclusion that content is lost.
@@ -80,9 +80,13 @@ def candidate(group):
     return dict(internal_note_id=internal,patient_key=group['patient'],anchor_date=group['day'] if anchor_ok else '',
         note_date=group['day'],author_id_if_available=rows[0][9] if rows else '',template_group=signature,
         selection_reason=';'.join(reasons),reconstruction_status='blocked' if hard else 'pending_human_confirmation',
-        hard_blocks=sorted(set(hard)),reconstruction_warnings=issues,reference_days=group['reference_days'],
+        hard_blocks=sorted(set(hard)),
+        reconstruction_warnings=sorted(set(issues+quality.get('review_warnings',[])+group.get('warnings',[])+group.get('manual_review',[]))),
+        metadata_evidence=group.get('metadata',{}),reference_days=group['reference_days'],
         target_candidate=bool(group['flag']=='Yes' and (signatures or re.search(r'geriatric',group['kind'] or '',re.I))),
-        text=text,source_rows=mapping,raw_rows=[dict(source_excel_row=group['header_row']+2+r[0],line=r[6],text=r[7]) for r in rows])
+        text=text,source_rows=mapping,raw_rows=[dict(source_excel_row=group['header_row']+2+r[0],line=r[6],text=r[7],
+            note_date=r[2],note_type=r[3],author=r[9],note_id=r[10],note_csn=r[11],
+            pat_id=r[13] if len(r)>13 else None,mrn=r[14] if len(r)>14 else None,department=r[16] if len(r)>16 else None) for r in rows])
 
 
 MANIFEST = ['sample_id','internal_note_id','patient_key','anchor_date','note_date','author_id_if_available','template_group','selection_reason','reconstruction_status','identity_approved','reconstruction_approved','target_ga_approved','reviewer','review_comment']
@@ -121,6 +125,8 @@ def prepare(root, out, config, patient_key):
     inputs={name:digest(_workbook(root,name,config)) for name in ['demographics','notes']}
     frozen=dict(version=version(),config=config,patient_key=patient_key,input_sha256=inputs,
                 schema_status='local registry; Erika schema mapping unverified',frozen_sample_rows=manifest,
+                grouping_audit_sha256={p.name:digest(p) for p in (out/'prepare_audit').glob('ga_note_grouping_*.csv')},
+                linkage_schema=read(out/'prepare_audit'/'ga_linkage_schema.json') if (out/'prepare_audit'/'ga_linkage_schema.json').exists() else None,
                 schema_sha256=digest(out/'prepare_audit'/'ga_schema_validation.json') if (out/'prepare_audit'/'ga_schema_validation.json').exists() else None,
                 requested_samples=n,selected_samples=len(manifest),
                 support_registry_sha256=digest(out/'support_registry.csv'),sample_membership=[(m['sample_id'],m['internal_note_id']) for m in manifest],

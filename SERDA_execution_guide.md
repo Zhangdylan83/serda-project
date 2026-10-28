@@ -117,7 +117,7 @@ columns:
     # encounter: "PAT_ENC_CSN_ID"    # only if a genuine encounter field exists
     # note_id: "NOTE_ID"             # only if a genuine note identifier exists
 notes:
-  note_key_fields: []
+  note_key_fields: [note_csn]  # explicit candidate text grain; not globally verified
   note_key_verified: false
   line_start: 1
   encounter_linkage_verified: false
@@ -249,7 +249,7 @@ ga_extraction:
   template_patterns: ["geriatric\\s+components?"]
 ```
 
-The example is illustrative, not a claim about real headers or the right grouping key. Merge these values into the existing config rather than replacing its other settings. If unique note identity is unverified, leave verification false: the command emits candidate-group quality audits, extracts no values and reports `audit_only_identity_unverified` (exit code 2). If the direct patient key or Demographics date is absent, it reports a schema failure. Do not set `note_key_verified: true` merely to bypass the guard. Confirm whether fragments require a newline, literal space or no separator. A repeated identical LINE is de-duplicated for reconstruction; conflicting, missing, nonnumeric, gapped or out-of-order LINEs are flagged. Source-order inversions are excluded conservatively. Contiguous lines cannot prove the last line is present.
+The example is illustrative, not a claim about real headers or the right grouping key. Merge these values into the existing config rather than replacing its other settings. If unique note identity is unverified, leave verification false: the command emits candidate-group quality audits, extracts no values and reports `audit_only_identity_unverified` (exit code 2). If the direct patient key or Demographics date is absent, it reports a schema failure. Do not set `note_key_verified: true` merely to bypass the guard. Confirm whether fragments require a newline, literal space or no separator. A repeated identical LINE is de-duplicated for reconstruction; conflicting, missing, nonnumeric, gapped or out-of-order LINEs are flagged. Source-order inversions are sorted numerically and audited; they do not alone block reconstruction. Gaps trigger manual review rather than a claim of missing text. Contiguous lines cannot prove the last line is present.
 
 Run in Windows SERDA CPU with a **new empty** approved output root:
 
@@ -269,7 +269,7 @@ Use the existing CPU Python environment and dependencies. Keep `notes.note_key_v
 python run_pipeline.py --data-dir "Z:\PHI" --output-dir "<approved SERDA storage>\ga_validation" --config config.yaml --patient-key mrn --ga-validation-prepare
 ```
 
-Prepare scans Demographics and Notes through the existing GA loader. It writes `prepare_audit/`, `reconstruction_audit.csv`, full candidate note JSON files with raw rows and character mappings in `candidates/`, `sample_manifest.csv`, `support_registry.csv`, `reference_annotations.csv`, `run_manifest.json`, `review.html` and `blocked_review.html`. The blocked HTML shows at most ten blocked groups; the reconstruction CSV and candidate files retain the full audit. Gaps and source-order inversions are questions for human review; proposed text is numerically ordered with the configured fragment separator, without filling gaps. Conflicting patient/date/type/author/note identifiers or same-LINE text remain hard blocks. Complete-looking LINE sequences do not establish document boundaries or terminal completeness.
+Prepare scans Demographics and Notes through the existing GA loader. It writes `prepare_audit/`, `reconstruction_audit.csv`, full candidate note JSON files with raw rows and character mappings in `candidates/`, `sample_manifest.csv`, `support_registry.csv`, `reference_annotations.csv`, `run_manifest.json`, `review.html` and `blocked_review.html`. The blocked HTML shows at most ten blocked groups; the reconstruction CSV and candidate files retain the full audit. Source-order inversions are numerically sorted and recorded, without changing source rows. Gaps remain questions for human review; no lines are invented. Conflicting patient/date/note identity or same-LINE text remain hard blocks. Different nonempty type/author/encounter/department values require review; missing optional metadata is recorded separately. Complete-looking LINE sequences do not establish document boundaries or terminal completeness.
 
 Selection uses different patients first, then template and historical/score-layout variation, never successful extraction. Author metadata is shown when present; template diversity alone is not evidence of different doctors. The manifest fixes membership and ordering; Prepare refuses to replace it. Source SHA-256 fingerprints, code hashes, config, candidate hashes and registry are frozen. `local.*` support paths are provisional and are not Erika schema mappings. Generic GDS denominator/version must be clinically reviewed.
 
@@ -294,3 +294,32 @@ python run_pipeline.py --data-dir "Z:\PHI" --output-dir "<approved SERDA storage
 This creates `baseline/evaluation/` with `reference_snapshot.csv`, `evaluation_by_field.csv`, `error_cases.csv`, an evaluation manifest and limitations. Exact values and explicitly recorded denominators are compared as strings (no clinical unit/score inference). Error categories distinguish missed values, false extraction, wrong value/denominator, unsupported documented content, unresolved values, blocked records and pending clinical review. No overall accuracy or population precision/recall is asserted. Later reference revisions use `--ga-evaluation-name review2` and never overwrite earlier references/results.
 
 Only after reviewing baseline may rules be revised. Use the same frozen samples and `--ga-validation-label revised` for Run and Evaluate; results remain separate. The same development samples cannot become an independent test set. Do not upload any generated package file, even HTML or aggregate results, outside SERDA. Actual runtime, schema, template diversity, complete-note identity and extraction performance still require real-data execution and Erika's review.
+
+## Review document grain before changing keys
+
+For the described export, use the explicit candidate setting below, without asserting global verification. Existing file/sheet/header mappings must be retained and checked in SERDA. A custom department header is optional; map it only when its actual full name is known.
+
+```yaml
+notes:
+  note_key_fields: [note_csn]
+  note_key_verified: false
+# Merge into columns.notes if needed:
+#   note_csn: "<actual full NOTE_CSN column>"
+#   department: "<actual full service-department column>"
+```
+
+Run into a **new** validation package, leaving earlier manifests and baseline results intact:
+
+```powershell
+python run_pipeline.py --data-dir "Z:\PHI" --output-dir "<approved SERDA storage>\ga_grouping_review" --config config.yaml --patient-key mrn --ga-validation-prepare
+```
+
+Read `prepare_audit/ga_linkage_schema.json` first. It records the actual logical patient key and source column, separately the configured document key/source columns, MRN and PAT_ID consistency-check columns, and department mapping. Console output contains only these column mappings, never patient values. NOTE_ID presence does not override the explicit NOTE_CSN choice. Missing configured key fields never cause fallback to a different column.
+
+Then read `ga_note_grouping_summary.csv` in that folder. All counts refer to nonblank source rows. It reports NOTE_CSN groups, complete `(MRN, NOTE_CSN)` groups, CSNs with multiple MRNs/PAT_IDs, missing MRN/CSN rows, NOTE_IDs spanning contacts, CSNs spanning NOTE_IDs, identifier mapping multiplicity, and blocked CSNs. `same_partition_on_complete_id_rows` compares only rows having both identifiers; it is unavailable if there are no such rows. `same_partition_on_all_source_rows` also requires no missing identifiers and nonempty input. A missing-column comparison is unavailable, not zero. Neither equality flag establishes document identity or text completeness.
+
+Filter `ga_note_grouping_detail_SERDA_ONLY.csv` by `partition_comparison != same_membership` to inspect differences. Join by NOTE_CSN to `ga_note_grouping_members_SERDA_ONLY.csv`, which includes every nonblank source row, Excel row number, MRN, PAT_ID, NOTE_ID and identifier status; missing-CSN rows remain visible. `ga_note_identifier_relations_SERDA_ONLY.csv` preserves identifier relationship counts. These files contain PHI and remain in SERDA. Global CSN identity conflicts block affected groups even if a custom composite key would split them into apparently consistent subgroups; single-sample approval cannot override those hard blocks.
+
+`ga_note_metadata_audit_SERDA_ONLY.csv` and the offline review HTML expose missing optional values separately from differing nonempty values. Mixed department/type/author/encounter values require investigation and sample approval, not automatic group splitting. Identity conflicts, conflicting note dates/timestamps, missing essential fragments and different text at the same LINE remain hard blocks. Identical duplicate fragments retain all Excel-row mappings. Numeric LINE order is recovered even if source rows are shuffled; gaps/starting position require review without asserting data loss or inserting text. Department provenance must be confirmed with the export owner before interpreting a difference clinically.
+
+Keep extraction comparison separate: this change alters preparation/auditing policy, not regex rules. An older package's baseline must use the prepared source version; do not edit its frozen notes or manifest. Re-prepare in a new folder to inspect the new grouping policy, and describe any changed sample/text boundaries when comparing outcomes. Real-file grouping equivalence and the clinical meaning of NOTE_CSN still require SERDA execution and export-definition review; no such result is claimed here.

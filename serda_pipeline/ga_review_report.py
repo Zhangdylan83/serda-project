@@ -21,7 +21,7 @@ def render(path,manifest,notes,predictions):
         html.append('<section><h2>'+escape(m['sample_id'])+'</h2><p>'+escape(str(m['template_group'])+' | '+str(m['selection_reason'])+' | '+str(m['reconstruction_status']))+'</p>')
         html.append('<p>Reconstruction warnings: '+escape('; '.join(note['reconstruction_warnings']))+'</p>')
         html.append('<h3>Full proposed note — reference first</h3><pre>'+escape(note['text'])+'</pre>')
-        html.append('<details><summary>All original rows and reconstruction mapping</summary><pre>'+escape(json.dumps(dict(raw_rows=note['raw_rows'],source_mapping=note['source_rows']),ensure_ascii=False,indent=2))+'</pre></details>')
+        html.append('<details><summary>All original rows and reconstruction mapping</summary><pre>'+escape(json.dumps(dict(metadata_evidence=note.get('metadata_evidence',{}),hard_blocks=note['hard_blocks'],raw_rows=note['raw_rows'],source_mapping=note['source_rows']),ensure_ascii=False,indent=2))+'</pre></details>')
         html.append('<details><summary>Reveal CPU predictions and matched evidence</summary>')
         spans=[tuple(s) for p in hits for s in json.loads(p['evidence_start_end'])]
         html.append('<pre>'+highlighted(note['text'],spans)+'</pre><table><tr><th>Field</th><th>Value / denominator</th><th>Status</th><th>Evidence / review reason</th></tr>')

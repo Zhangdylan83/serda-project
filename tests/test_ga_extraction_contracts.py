@@ -91,17 +91,25 @@ class GAExtractionContracts(unittest.TestCase):
         self.assertEqual(reasons,[])
         self.assertEqual(quality['duplicate_line_rows'],2)
 
-    def test_reject_conflict_gap_and_inversion(self):
+    def test_reject_conflict_and_invalid_line(self):
         for rows, reason in [
             ([(0,1,'1','a'),(1,1,'1','b')],'conflicting_line_text'),
-            ([(0,1,'1','a'),(1,3,'3','b')],'line_gap_or_start'),
-            ([(0,2,'2','a'),(1,1,'1','b')],'out_of_order_lines'),
             ([(0,None,'x','a')],'missing_or_nonnumeric_line'),
         ]:
             with self.subTest(reason=reason):
                 text, reasons, _ = reconstruct_fragments(rows)
                 self.assertIsNone(text)
                 self.assertIn(reason,reasons)
+
+    def test_sortable_order_is_recovered_and_gap_is_review_evidence(self):
+        text,reasons,quality=reconstruct_fragments([(0,3,'3','c'),(1,1,'1','a'),(2,2,'2','b')])
+        self.assertEqual(text,'a\nb\nc')
+        self.assertEqual(reasons,[])
+        self.assertIn('source_order_sorted_by_line',quality['review_warnings'])
+        text,reasons,quality=reconstruct_fragments([(0,1,'1','a'),(1,3,'3','c')])
+        self.assertEqual(text,'a\nc')
+        self.assertEqual(reasons,[])
+        self.assertIn('line_gap_or_start',quality['review_warnings'])
 
     def test_explicit_numeric_instruments(self):
         rows = resolve_evidence(extract_text('MoCA 15/30. GDS 2/15. SPPB: 9/12. VES-13 score 4.')[0])

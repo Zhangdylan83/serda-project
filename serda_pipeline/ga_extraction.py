@@ -11,6 +11,8 @@ from tempfile import TemporaryDirectory
 import pandas as pd
 
 from .core import PipelineError, parse_dates
+from .schema import normalize
+from .note_grouping import audit_grouping, group_global_blocks, group_global_review, metadata_evidence
 from .mrn_audit import _rows, _discover, _clean_mrn
 from .notes import (anchor_status, find_workbook, identifier, line_number,
                     line_quality, missing_value, schema_mapping, validate_settings)
@@ -188,7 +190,7 @@ def reconstruct_fragments(rows, line_start=1, separator='\n'):
     """Rows are (source ordinal, numeric LINE, raw LINE, text).
 
     A repeated identical LINE is de-duplicated; conflicting or missing LINEs
-    and source-order inversions are never silently repaired.
+    are rejected. Sortable source-order inversions and gaps are audited separately.
     """
     reasons = []
     if any(row[3] is None for row in rows): reasons.append('missing_fragment_text')
@@ -206,8 +208,10 @@ def reconstruct_fragments(rows, line_start=1, separator='\n'):
     quality = line_quality({n:len(texts) for n,texts in by_line.items()},ordered,
                            sum(row[1] is not None for row in rows),line_start)
     if quality['conflicting_lines']: reasons.append('conflicting_line_text')
-    if quality['missing_line_positions'] or quality['unexpected_first_line']: reasons.append('line_gap_or_start')
-    if quality['out_of_order']: reasons.append('out_of_order_lines')
+    if quality['no_valid_lines']: reasons.append('no_valid_lines')
+    quality['review_warnings'] = []
+    if quality['missing_line_positions'] or quality['unexpected_first_line']: quality['review_warnings'].append('line_gap_or_start')
+    if quality['out_of_order']: quality['review_warnings'].append('source_order_sorted_by_line')
     text = None if reasons else separator.join(next(iter(by_line[n])) for n in sorted(by_line))
     return text, reasons, quality
 
@@ -247,7 +251,7 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
     with TemporaryDirectory(prefix='.ga-stage-', dir=output) as stage:
         with closing(sqlite3.connect(str(Path(stage)/'ga.sqlite'))) as db:
             db.execute('PRAGMA temp_store=FILE')
-            db.execute('CREATE TABLE fragments (ordinal INTEGER, group_key TEXT, patient TEXT, day TEXT, note_type TEXT, flag TEXT, line INTEGER, raw_line TEXT, text TEXT, encounter TEXT, author TEXT, note_id TEXT, note_csn TEXT, note_timestamp TEXT)')
+            db.execute('CREATE TABLE fragments (ordinal INTEGER, group_key TEXT, patient TEXT, day TEXT, note_type TEXT, flag TEXT, line INTEGER, raw_line TEXT, text TEXT, encounter TEXT, author TEXT, note_id TEXT, note_csn TEXT, note_timestamp TEXT, pat_id TEXT, mrn TEXT, mrn_status TEXT, department TEXT)')
             with _rows(path, 'notes', config) as (source_sheet, header_row, headers, stream):
                 _, mapping, ambiguous, absent = schema_mapping(headers, config)
                 if ambiguous:
@@ -255,13 +259,14 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
                 required = {'line','date','text','anchor_flag'}
                 if required-set(mapping):
                     raise PipelineError('Notes missing required GA columns: '+', '.join(sorted(required-set(mapping))))
-                key_fields = notes_settings.get('note_key_fields') or (
-                    ['note_id'] if 'note_id' in mapping else ['note_csn'] if 'note_csn' in mapping else [])
+                key_fields = notes_settings.get('note_key_fields', [])  # Explicit export granularity only.
+                requested_key_fields = list(key_fields)
+                unavailable_key_fields = [k for k in key_fields if k not in mapping]
                 if identity_verified and any(k not in mapping for k in key_fields):
                     raise PipelineError('Verified Notes grouping key field missing: '+', '.join(k for k in key_fields if k not in mapping))
                 if not identity_verified and any(k not in mapping for k in key_fields):
                     key_fields = []
-                mrn_mapping = _discover(headers, 'notes', config) if patient_key == 'mrn' else None
+                mrn_mapping = _discover(headers, 'notes', config)  # Audit both IDs regardless of linkage choice.
                 patient_col = mrn_mapping['mrn'] if patient_key == 'mrn' else mapping.get('patient')
                 if patient_col is None:
                     raise PipelineError('Notes lacks a direct validated '+patient_key+' column; GA extraction will not guess patient linkage.')
@@ -274,19 +279,48 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
                 author_col = author_matches[0] if author_matches else None
                 if author_override and author_col is None:
                     raise PipelineError('Configured columns.notes.author is absent.')
+                department_override = config.get('columns',{}).get('notes',{}).get('department')
+                department_aliases = [department_override] if department_override else ['SERVICE_DEPARTMENT','DEPARTMENT_NAME','SERVICE_DEPARTMENT_NAME']
+                department_matches = [i for i,h in enumerate(headers) if normalize(h) in {normalize(a) for a in department_aliases}]
+                if len(department_matches)>1 or (department_override and not department_matches):
+                    raise PipelineError('Missing/ambiguous Notes department column; configure columns.notes.department.')
+                department_col = department_matches[0] if department_matches else None
+                resolved_schema = {
+                    'patient_linkage': {'logical_key':patient_key,'source_column':headers[patient_col]},
+                    'note_reconstruction': {'logical_keys':key_fields,'source_columns':[headers[mapping[k]] for k in key_fields],
+                        'requested_keys':requested_key_fields,'unavailable_key_fields':unavailable_key_fields,
+                        'status':'configured_key_unavailable' if unavailable_key_fields else 'explicit_candidate_key' if key_fields else 'unconfigured_no_grouping'},
+                    'cross_patient_consistency': {
+                        'mrn_column':headers[mrn_mapping['mrn']] if mrn_mapping['mrn'] is not None else None,
+                        'mrn_mapping_status':mrn_mapping['status'],
+                        'pat_id_column':headers[mapping['patient']] if 'patient' in mapping else None},
+                    'department_column':headers[department_col] if department_col is not None else None,
+                    'department_provenance':'unverified; review evidence, never a grouping key',
+                    'legacy_patient_key_meaning':'columns.notes.patient (default PAT_ID); independent of --patient-key',
+                }
+                (output/'ga_linkage_schema.json').write_text(json.dumps(resolved_schema,indent=2),encoding='utf-8')
+                # Only logical names/column headers are printed, never patient values.
+                print('Patient linkage: '+patient_key+' -> '+str(headers[patient_col]))
+                print('Note reconstruction: '+str(resolved_schema['note_reconstruction']))
+                print('Cross-patient consistency columns: '+str(resolved_schema['cross_patient_consistency']))
                 for ordinal, row in enumerate(stream):
                     if not any(missing_value(v) is not None for v in row):
                         continue
                     if len(row)>len(headers) and any(missing_value(v) is not None for v in row[len(headers):]):
                         raise PipelineError('Notes row extends beyond configured header width.')
-                    patient = _patient(_value(row,patient_col),patient_key)
-                    if patient_key == 'mrn' and patient is not None:
+                    pat_id = _id(_value(row,mapping.get('patient')))
+                    mrn,mrn_status,_ = _clean_mrn(_value(row,mrn_mapping['mrn']))
+                    if mrn is not None:
                         for alternative in mrn_mapping['alternatives']:
                             other = _clean_mrn(_value(row,alternative))[0]
-                            if other is not None and other != patient:
-                                patient = None
+                            if other is not None and other != mrn:
+                                mrn = None; mrn_status = 'conflicting_mrn_columns'
                                 summary['conflicting_mrn_rows'] += 1
                                 break
+                    if mrn_mapping['mrn'] is None: mrn_status = mrn_mapping['status']
+                    patient = mrn if patient_key=='mrn' else pat_id
+                    department = missing_value(_value(row,department_col))
+                    if department is not None: department = department.strip()
                     timestamp,day = cached_note_date(_value(row,mapping['date']))
                     kind = missing_value(_value(row,mapping.get('note_type')))
                     flag = anchor_status(missing_value(_value(row,mapping['anchor_flag'])))
@@ -300,13 +334,17 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
                     for field in key_fields:
                         raw = _value(row,mapping[field])
                         parts.append(timestamp if field == 'date' else _id(raw) if field in {'patient','note_id','note_csn','encounter'} else missing_value(raw))
-                    # Group key is augmented by direct patient, date, type, encounter and author.
-                    # A collision in the verified note key across metadata remains auditable.
+                    # Only explicit key fields define groups. Metadata differences remain visible.
                     group_key = json.dumps(parts,ensure_ascii=False) if key_fields and all(p is not None for p in parts) else None
-                    db.execute('INSERT INTO fragments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-                        (ordinal,group_key,patient,day,kind,flag,line_number(raw_line),raw_line,content,encounter,author,note_id,note_csn,timestamp))
+                    db.execute('INSERT INTO fragments VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+                        (ordinal,group_key,patient,day,kind,flag,line_number(raw_line),raw_line,content,encounter,author,note_id,note_csn,timestamp,pat_id,mrn,mrn_status,department))
                     summary['source_fragment_rows'] += 1
             db.commit()
+            grouping_stats = audit_grouping(db,output,{
+                'mrn':mrn_mapping['mrn'] is not None,'pat_id':'patient' in mapping,
+                'note_csn':'note_csn' in mapping,'note_id':'note_id' in mapping},
+                path.name,source_sheet,header_row)
+            metadata_rows=[]
             summary['ungroupable_fragment_rows'] = db.execute('SELECT COUNT(*) FROM fragments WHERE group_key IS NULL').fetchone()[0]
             _csv(output/'ga_ungroupable_fragments_SERDA_ONLY.csv',
                  ['source_row_position_zero_based','patient_identifier_SERDA_ONLY','note_day',
@@ -328,32 +366,34 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
             for key, size, chars in groups:
                 summary['candidate_groups'] += 1
                 note_ref = 'group_' + str(summary['candidate_groups'])
-                reasons = []
+                reasons = group_global_blocks(db,key)
+                warnings=[]; manual_review=[]; metadata={}
                 if size > notes_settings.get('max_fragments_per_note',100000) or chars > notes_settings.get('max_note_characters',5000000):
                     reasons.append('group_size_limit')
                     rows = []
                 else:
-                    rows = db.execute('SELECT ordinal,patient,day,note_type,flag,line,raw_line,text,encounter,author,note_id,note_csn,note_timestamp FROM fragments WHERE group_key=? ORDER BY ordinal',(key,)).fetchall()
+                    rows = db.execute('SELECT ordinal,patient,day,note_type,flag,line,raw_line,text,encounter,author,note_id,note_csn,note_timestamp,pat_id,mrn,mrn_status,department FROM fragments WHERE group_key=? ORDER BY ordinal',(key,)).fetchall()
                 def single(index):
-                    values = {r[index] for r in rows}
+                    values = {r[index] for r in rows if r[index] is not None}
                     return next(iter(values)) if len(values)==1 else None
                 patient, day, kind, flag = (single(i) for i in [1,2,3,4])
                 if rows:
                     if not identity_verified: reasons.append('identity_unverified_candidate_group_only')
-                    for index, name in [(1,'patient'),(2,'date'),(3,'note_type'),(4,'anchor_flag'),
-                                        (8,'encounter'),(9,'author'),(10,'note_id'),(11,'note_csn'),
-                                        (12,'note_timestamp')]:
-                        if len({r[index] for r in rows})>1:
-                            reasons.append('conflicting_'+name)
-                    if patient is None: reasons.append('unlinked_patient')
-                    if day is None: reasons.append('missing_note_date')
+                    meta_hard,warnings,manual_review,metadata = metadata_evidence(rows,department_col is not None)
+                    reasons.extend(meta_hard)
+                    manual_review.extend(group_global_review(db,key))
+                    if patient is None or any(r[1] is None for r in rows): reasons.append('unlinked_patient')
+                    if day is None or any(r[2] is None for r in rows): reasons.append('missing_note_date')
                     text, fragment_reasons, quality = reconstruct_fragments(
                         [(r[0],r[5],r[6],r[7]) for r in rows],
                         notes_settings.get('line_start',1),separator)
                     reasons.extend(fragment_reasons)
+                    warnings.extend(quality['review_warnings'])
+                    if 'line_gap_or_start' in quality['review_warnings']: manual_review.append('line_gap_or_start')
                     if quality['duplicate_line_rows']: summary['duplicate_line_rows'] += quality['duplicate_line_rows']
                     if reasons: text = None
                 else: text = None
+                metadata_rows.append([note_ref,key,json.dumps(metadata,ensure_ascii=False),';'.join(warnings),';'.join(manual_review),';'.join(reasons)])
                 if reasons: summary['reconstruction_failures'] += 1
                 else: summary['reconstructed_notes'] += 1
                 dates = reference.get(patient,set()) if patient else set()
@@ -362,13 +402,14 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
                 template_match = bool(text and any(p.search(text) for p in template_patterns))
                 evidence = ';'.join(name for name,yes in [('anchor_yes',flag=='Yes'),('reference_date',date_match),('note_type',type_match),('ga_template',template_match)] if yes)
                 if review_callback is not None:
-                    review_callback(dict(key=key, rows=rows, reasons=reasons,
+                    review_callback(dict(key=key, rows=rows, reasons=reasons, warnings=warnings, manual_review=manual_review, metadata=metadata,
                         patient=patient, day=day, kind=kind, flag=flag,
                         reference_days=sorted(dates), invalid_reference=patient in invalid_reference,
                         source_file=path.name, source_sheet=source_sheet, header_row=header_row,
                         separator=separator, line_start=notes_settings.get('line_start',1)))
                 if not identity_verified: status = 'excluded_identity_unverified'
                 elif reasons: status = 'excluded_reconstruction'
+                elif manual_review: status = 'pending_reconstruction_review'
                 elif patient is None or not dates or patient in invalid_reference: status = 'excluded_linkage_or_reference'
                 elif len(dates)>1: status = 'ambiguous_multiple_reference_anchors'
                 elif not date_match or flag=='No': status = 'excluded_not_anchor_ga'
@@ -378,8 +419,8 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
                 summary[status] += 1
                 selection.append([note_ref,key,patient,day,kind,flag,status,evidence,';'.join(reasons),size,join])
                 if status not in {'confirmed_by_configured_rules','candidate_ga_note'} or text is None:
-                    if status.startswith('ambiguous') or status in {'excluded_reconstruction','excluded_identity_unverified'}:
-                        review.append([note_ref,patient,day,None,status,';'.join(reasons),None,None])
+                    if status.startswith('ambiguous') or status in {'excluded_reconstruction','excluded_identity_unverified','pending_reconstruction_review'}:
+                        review.append([note_ref,patient,day,None,status,';'.join(reasons+manual_review),None,None])
                     continue
                 if review_callback is not None:
                     continue  # Prepare reviews reconstruction only; never run the extractor.
@@ -395,6 +436,8 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
                         if state!='extracted': review.append([note_ref,patient,day,instrument,state,pattern,start,end])
                 for domain in mentions - set(by_domain):
                     review.append([note_ref,patient,day,domain,'mention_without_supported_value','qualitative_mention',None,None])
+    _csv(output/'ga_note_metadata_audit_SERDA_ONLY.csv',
+         ['note_ref','candidate_key','metadata_evidence_json','warnings','manual_review_reasons','hard_blocks'],metadata_rows)
     # More than one rule-eligible note at a patient/anchor date is an unresolved
     # selection, even when each note separately passed the configured rules.
     eligible_statuses = {'confirmed_by_configured_rules','candidate_ga_note'}
@@ -440,6 +483,7 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
              'All coverage denominators are confirmed plus candidate GA notes; only configured rule evidence determines selection.',
              'Instrument mentions are not diagnoses or current scores. Review patient-level outputs inside SERDA only.','',
              f'Patient linkage key: {patient_key}. Candidate note key fields: {key_fields}. Identity locally verified: {identity_verified}. Fragment join: {join}.',
+             'Review ga_linkage_schema.json and ga_note_grouping_summary.csv for resolved columns and NOTE_CSN versus (MRN, NOTE_CSN) row-partition comparison. Equal partitions do not prove note identity or completeness.',
              'Schema: actual headers are recorded in ga_schema_validation.json; configurable through files.notes, sheets.notes, header_rows.notes and columns.notes.',
              f'Reconstructed notes: {summary["reconstructed_notes"]}; reconstruction failures: {summary["reconstruction_failures"]}; ungroupable fragment rows: {summary["ungroupable_fragment_rows"]}.',
              f'NOTE_CSN groups: {summary["csn_groups"]}; spanning multiple note IDs: {summary["csn_multiple_note_ids"]}; spanning multiple patients: {summary["csn_multiple_patients"]}; repeated LINE groups: {summary["csn_repeated_line_groups"]}. These are structural flags, not proof of note identity.',
@@ -451,7 +495,7 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
     lines.extend(f'- {name}: {count} note groups.' for name,count in sorted(summary.items())
                  if name in {'confirmed_by_configured_rules','candidate_ga_note','ambiguous_multiple_ga_notes',
                              'ambiguous_multiple_reference_anchors','excluded_reconstruction',
-                             'excluded_identity_unverified','excluded_linkage_or_reference',
+                             'excluded_identity_unverified','pending_reconstruction_review','excluded_linkage_or_reference',
                              'excluded_not_anchor_ga','excluded_insufficient_ga_evidence'})
     for field in fields:
         counts=coverage[field]
@@ -463,6 +507,7 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
         'author_column':headers[author_col] if author_col is not None else None,
         'missing_optional_fields':absent,'patient_key':patient_key,
         'candidate_note_key_fields':key_fields,'note_identity_verified':identity_verified,
+        'resolved_linkage_and_grouping':resolved_schema,'grouping_comparison':grouping_stats,
         'selection_counts':dict(summary)},
         indent=2),encoding='utf-8')
     for name in ['source_fragment_rows','ungroupable_fragment_rows','candidate_groups',

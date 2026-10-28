@@ -205,9 +205,7 @@ def _read_dataset(db,root,dataset,config,report):
         def value(values,index): return values[index] if index is not None and index<len(values) else None
         settings=config.get('notes',{}) if dataset=='notes' else {}
         note_fields=mapping['note_fields']
-        configured_keys=(settings.get('note_key_fields',[]) or
-            (['note_id'] if note_fields.get('note_id') is not None else
-             ['note_csn'] if note_fields.get('note_csn') is not None else [])) if dataset=='notes' else []
+        configured_keys=settings.get('note_key_fields',[]) if dataset=='notes' else []
         candidate_key_available=bool(configured_keys and
                              all(note_fields.get(field) is not None or
                                  (field=='patient' and mapping['patient'] is not None) or

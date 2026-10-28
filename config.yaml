@@ -38,7 +38,9 @@ notes:
   # Configure mapped field names only AFTER verifying the export's note granularity.
   # Example only: [note_id] when NOTE_ID is confirmed as the note identifier.
   # NOTE_CSN alone is not assumed to identify a unique note.
-  note_key_fields: []
+  # Candidate text grain for this export; not a claim of global document identity.
+  # No automatic NOTE_ID/NOTE_CSN fallback. Empty list disables candidate grouping.
+  note_key_fields: [note_csn]
   note_key_verified: false
   line_start: 1  # confirm 0 vs 1 locally; contiguous lines do not prove no missing tail
   encounter_linkage_verified: false  # needed for a custom encounter field/NOTE_CSN mapping
