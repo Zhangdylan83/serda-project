@@ -1,0 +1,1329 @@
+{
+  "scope": "Explicit-format software rule support, not clinical coverage or validation",
+  "fields": [
+    {
+      "field_path": "note_id",
+      "support": "unsupported_metadata",
+      "schema": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "note_date",
+      "support": "unsupported_metadata",
+      "schema": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date"
+      }
+    },
+    {
+      "field_path": "performance_status.ecog",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0,
+        "maximum": 4
+      }
+    },
+    {
+      "field_path": "performance_status.kps",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 0,
+        "maximum": 100
+      }
+    },
+    {
+      "field_path": "physical_function.clinician_status",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "impaired",
+          "not_impaired",
+          null
+        ],
+        "description": "Clinician's documented judgment for the domain; null if none stated."
+      }
+    },
+    {
+      "field_path": "physical_function.ves13.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.ves13.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.ves13.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "physical_function.adl.source",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "itemized",
+          "global_statement",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.adl.bathing",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.adl.dressing",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.adl.eating",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.adl.transferring",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.adl.walking",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.adl.toileting",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.source",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "itemized",
+          "global_statement",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.telephone",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.transportation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.shopping",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.meal_preparation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.housework",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.medications",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.finances",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "independent",
+          "needs_assistance",
+          "dependent",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.total.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.total.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.iadl.total.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.vigorous_activities",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "limited_a_lot",
+          "limited_a_little",
+          "not_limited_at_all",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.moderate_activities",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "limited_a_lot",
+          "limited_a_little",
+          "not_limited_at_all",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.lifting_groceries",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "limited_a_lot",
+          "limited_a_little",
+          "not_limited_at_all",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.climbing_several_flights",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "limited_a_lot",
+          "limited_a_little",
+          "not_limited_at_all",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.climbing_one_flight",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "limited_a_lot",
+          "limited_a_little",
+          "not_limited_at_all",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.bending_kneeling_stooping",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "limited_a_lot",
+          "limited_a_little",
+          "not_limited_at_all",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.walking_more_than_mile",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "limited_a_lot",
+          "limited_a_little",
+          "not_limited_at_all",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.walking_several_blocks",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "limited_a_lot",
+          "limited_a_little",
+          "not_limited_at_all",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.walking_one_block",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "limited_a_lot",
+          "limited_a_little",
+          "not_limited_at_all",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.bathing_dressing",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "limited_a_lot",
+          "limited_a_little",
+          "not_limited_at_all",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.score.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.score.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_function.mos_physical_function.score.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "physical_function.assistive_device",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "none",
+          "cane",
+          "walker",
+          "wheelchair",
+          null
+        ],
+        "description": "Most supportive device used."
+      }
+    },
+    {
+      "field_path": "physical_performance.clinician_status",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "impaired",
+          "not_impaired",
+          null
+        ],
+        "description": "Clinician's documented judgment for the domain; null if none stated."
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_total.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_total.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_total.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_balance.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_balance.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_balance.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_gait.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_gait.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_gait.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_chair_stands.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_chair_stands.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_performance.sppb_chair_stands.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "physical_performance.gait_speed_m_per_s",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "physical_performance.timed_up_and_go_s",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "falls.clinician_status",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "impaired",
+          "not_impaired",
+          null
+        ],
+        "description": "Clinician's documented judgment for the domain; null if none stated."
+      }
+    },
+    {
+      "field_path": "falls.any_fall",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "yes",
+          "no",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "falls.lookback_months",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "falls.number_of_falls.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "falls.number_of_falls.qualifier",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "exact",
+          "approximate",
+          "greater_than",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.clinician_status",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "impaired",
+          "not_impaired",
+          null
+        ],
+        "description": "Clinician's documented judgment for the domain; null if none stated."
+      }
+    },
+    {
+      "field_path": "cognition.moca.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.moca.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.moca.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "cognition.bomc.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.bomc.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.bomc.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "cognition.mini_cog.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.mini_cog.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.mini_cog.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "cognition.mmse.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.mmse.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.mmse.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "cognition.slums.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.slums.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "cognition.slums.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "psychological.clinician_status",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "impaired",
+          "not_impaired",
+          null
+        ],
+        "description": "Clinician's documented judgment for the domain; null if none stated."
+      }
+    },
+    {
+      "field_path": "psychological.gds15.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "psychological.gds15.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "psychological.gds15.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "psychological.gad7.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "psychological.gad7.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "psychological.gad7.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "comorbidity.clinician_status",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "impaired",
+          "not_impaired",
+          null
+        ],
+        "description": "Clinician's documented judgment for the domain; null if none stated."
+      }
+    },
+    {
+      "field_path": "comorbidity.condition_count.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "comorbidity.condition_count.qualifier",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "exact",
+          "approximate",
+          "greater_than",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "comorbidity.vision",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "excellent",
+          "good",
+          "fair",
+          "poor",
+          "impaired_unspecified",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "comorbidity.hearing",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "excellent",
+          "good",
+          "fair",
+          "poor",
+          "impaired_unspecified",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "nutrition.clinician_status",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "impaired",
+          "not_impaired",
+          null
+        ],
+        "description": "Clinician's documented judgment for the domain; null if none stated."
+      }
+    },
+    {
+      "field_path": "nutrition.weight_loss",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "yes",
+          "no",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "nutrition.weight_loss_amount.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "nutrition.weight_loss_amount.unit",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "lb",
+          "kg",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "nutrition.weight_loss_lookback_months",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "integer",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "nutrition.current_weight.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "nutrition.current_weight.unit",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "lb",
+          "kg",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "nutrition.bmi",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "nutrition.mna_sf.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "nutrition.mna_sf.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "nutrition.mna_sf.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "polypharmacy.clinician_status",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "impaired",
+          "not_impaired",
+          null
+        ],
+        "description": "Clinician's documented judgment for the domain; null if none stated."
+      }
+    },
+    {
+      "field_path": "polypharmacy.medication_count.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "polypharmacy.medication_count.qualifier",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "exact",
+          "approximate",
+          "greater_than",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "polypharmacy.pims_present",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "yes",
+          "no",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "social_support.clinician_status",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "impaired",
+          "not_impaired",
+          null
+        ],
+        "description": "Clinician's documented judgment for the domain; null if none stated."
+      }
+    },
+    {
+      "field_path": "social_support.lives_alone",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "yes",
+          "no",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "social_support.has_caregiver",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "yes",
+          "no",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "social_support.mos_social_support_tangible.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "social_support.mos_social_support_tangible.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "social_support.mos_social_support_tangible.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "social_support.mos_social_support_emotional.value",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "social_support.mos_social_support_emotional.max",
+      "support": "explicit_formats_only",
+      "schema": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    {
+      "field_path": "social_support.mos_social_support_emotional.interpretation",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "normal",
+          "borderline",
+          "impaired",
+          null
+        ],
+        "description": "As documented."
+      }
+    },
+    {
+      "field_path": "social_support.mos_social_activity.interference_time_4wk",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "all_of_the_time",
+          "most_of_the_time",
+          "some_of_the_time",
+          "a_little_of_the_time",
+          "none_of_the_time",
+          null
+        ],
+        "description": "CARG toxicity input."
+      }
+    },
+    {
+      "field_path": "social_support.mos_social_activity.change_6mo",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "much_less_active",
+          "somewhat_less_active",
+          "about_the_same",
+          "somewhat_more_active",
+          "much_more_active",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "social_support.mos_social_activity.vs_peers",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "much_more_limited",
+          "somewhat_more_limited",
+          "about_the_same",
+          "somewhat_less_limited",
+          "much_less_limited",
+          null
+        ]
+      }
+    },
+    {
+      "field_path": "social_support.mos_social_activity.interference_extent_4wk",
+      "support": "explicit_formats_only",
+      "schema": {
+        "enum": [
+          "not_at_all",
+          "slightly",
+          "moderately",
+          "quite_a_bit",
+          "extremely",
+          null
+        ]
+      }
+    }
+  ]
+}

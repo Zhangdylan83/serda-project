@@ -223,3 +223,22 @@ nutrition/social-work notes; uncertain clinician impressions versus binary statu
 SPPB component assignment without inferred scores; and GDS version evidence. No new
 clinical-label extractor or frailty predictor is implemented. Real-data validation
 must occur in SERDA; software fixtures are not clinical evaluation.
+
+### Actual schema extraction from existing reconstructed samples
+
+Use the new CPU engine directly on `ga_grouping_review_02`; **do not rerun Prepare**:
+
+```powershell
+.\scripts\run_ga_erika_extract.ps1 -PackagePath "$env:USERPROFILE\Desktop\serda-results\ga_grouping_review_02"
+```
+
+The tracked `configs/serda_ga_erika.yaml` removes routine YAML editing. The launcher
+uses the existing repository `.venv` and creates a unique sibling output directory.
+One new lightweight dependency, `jsonschema`, validates Draft 2020-12 outputs.
+Existing source package, baseline and EDA remain unchanged. This engine implements
+actual explicit-format numeric/narrative rules across ten domains, separately from
+the old `erika_draft` review-grid adapter. It produces sparse clinical JSON, evidence,
+coverage and an offline review page with distinct evidence colors. It does not infer
+missingness or frailty labels. See [execution, exact support limits, approvals and
+curated-note contract](docs/GA_SCHEMA_EXTRACTION.md). Real-data accuracy remains
+unverified until human-reference review inside SERDA.

@@ -378,3 +378,27 @@ scans Notes and the configured anchor source, not all eight clinical datasets.
 Source Excel files and prior outputs are not modified. This mode reports coverage,
 unsupported fields and reference comparisons; no overall accuracy, inferred labels,
 clinical missingness claims or validated `ga_features.json` export is produced.
+
+## Preferred next step: extract from the existing eight frozen notes
+
+This new workflow replaces **repeated Prepare runs for extraction development**.
+It does not replace or modify the previous audit or baseline. After updating code:
+
+```powershell
+cd "$env:USERPROFILE\Desktop\serda-project"
+git pull --ff-only origin main
+.\scripts\run_ga_erika_extract.ps1 `
+  -PackagePath "$env:USERPROFILE\Desktop\serda-results\ga_grouping_review_02"
+```
+
+Use your actual existing code/package paths. The script uses tracked config without
+changing local `config_serda.yaml`; creates a unique new sibling result directory;
+and displays its `review.html` location. Source text and existing identity/reconstruction
+approvals must pass integrity checks. Target approval is recorded separately; these
+samples remain exploratory. Do not rerun Prepare or switch global verification on.
+
+If the script reports missing `jsonschema`, install the updated requirements using
+the approved SERDA online/offline dependency process once. No LLM/GPU is needed.
+See [GA_SCHEMA_EXTRACTION.md](docs/GA_SCHEMA_EXTRACTION.md) for dependency commands,
+`-OutputRoot`/`-PythonPath` options, sparse JSON semantics, actual field coverage,
+known rule limitations and the later curated-note adapter.

@@ -29,3 +29,7 @@ data_quality_report.md
 EDA_summary.md
 Data_Audit_Summary.md
 slide_ready_findings.md
+# New schema extraction artifacts are SERDA-only, never repository inputs.
+ga_features.jsonl
+extraction_evidence.jsonl
+ga_schema_v1_*/

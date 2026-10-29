@@ -4,3 +4,5 @@ matplotlib>=3.8,<4
 openpyxl>=3.1,<4
 PyYAML>=6,<7
 xlrd>=2.0,<3
+
+jsonschema>=4.18,<5

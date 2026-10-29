@@ -1,0 +1,82 @@
+# Tracked non-PHI SERDA export mappings. Frozen extraction never reads Excel.
+lookback_days: 365
+baseline_tolerance_days: 90
+followup_tolerance_days: 60
+excel_date_min: 20000
+excel_date_max: 80000
+dayfirst: false
+overwrite: false
+files:
+  notes: Notes.xlsx
+  demographics: Frailty Demographics.xlsx
+sheets: {}
+header_rows: {}
+columns:
+  notes:
+    patient: PAT_ID
+    mrn: PAT_MRN_ID
+    encounter: PAT_ENC_CSN_ID
+    note_csn: NOTE_CSN_ID
+    line: LINE
+    date: NOTE_CONTACT_DATE
+    text: NOTE_TEXT
+    anchor_flag: Anchor
+    note_type: NOTE_TYPE
+    department: SERVICE_NAME
+  demographics:
+    patient: PAT_ID
+    mrn: PAT_MRN_ID
+    anchor: CONTACT_DATE
+weight_units:
+  kg: 1.0
+  kilogram: 1.0
+  kilograms: 1.0
+  lb: 0.45359237
+  lbs: 0.45359237
+  pounds: 0.45359237
+height_units:
+  cm: 0.01
+  centimeters: 0.01
+  m: 1.0
+  meters: 1.0
+  in: 0.0254
+  inches: 0.0254
+cohort_anchor_policy: strict_timestamp
+temporal_granularity: timestamp
+anchor_day_policy: at_or_before_timestamp
+mrn_audit:
+  batch_rows: 2000
+notes:
+  note_key_fields:
+  - note_csn
+  note_key_verified: false
+  line_start: 1
+  encounter_linkage_verified: false
+  export_reconstructed_text: false
+  batch_rows: 1000
+  max_fragments_per_note: 100000
+  max_note_characters: 5000000
+ga_extraction:
+  fragment_join: newline
+  validated_denominators: {}
+  note_type_patterns:
+  - geriatric\s+oncology\s+initial\s+consult(?:ation)?
+  - geriatric\s+assessment
+  template_patterns:
+  - geriatric\s+components?
+  - geriatric\s+assessment
+ga_validation:
+  sample_size: 8
+  field_registry: erika_draft
+ga_input:
+  anchor_source: demographics_reference
+  cohort_anchor_file: null
+  target_note_manifest: null
+schema_extraction:
+  engine: ga_schema_v1
+  output_prefix: ga_schema_v1
+  scope: exploratory_development_samples
+
+# Full export header inventory for reproducibility; never used to infer note identity.
+export_contract:
+  notes_headers: [PAT_ENC_CSN_ID, PAT_ID, CONTACT_DATE, PAT_MRN_ID, PAT_NAME, SERVICE_NAME, NOTE_TYPE, NOTE_CSN_ID, LINE, NOTE_CONTACT_DATE, NOTE_TEXT, Anchor]
