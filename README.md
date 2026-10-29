@@ -242,3 +242,22 @@ coverage and an offline review page with distinct evidence colors. It does not i
 missingness or frailty labels. See [execution, exact support limits, approvals and
 curated-note contract](docs/GA_SCHEMA_EXTRACTION.md). Real-data accuracy remains
 unverified until human-reference review inside SERDA.
+
+### Standalone eight-table MRN patient coverage
+
+To locate patients present in one table but absent from another, run the independent
+coverage audit in SERDA:
+
+```powershell
+.\scripts\run_patient_coverage.ps1 -OutputRoot 'Z:\ApprovedRestrictedProject\serda-results'
+```
+
+Use an actual existing approved restricted output directory. The default source is
+`Z:\PHI`. This streams all eight sources for identifiers only, uses the **observed
+union**, never assumes Demographics defines the study cohort, and exports aggregate
+coverage, pairwise overlaps and directional gaps separately from restricted MRN
+lists. Optional independently confirmed roster coverage is supported. Failed tables
+are unavailable, not zero-patient sets. See [definitions, commands, outputs and
+limitations](docs/PATIENT_COVERAGE_AUDIT.md). It does not replace any prior audit or GA
+extraction output and does not infer whether missing patients reflect clinical
+sparsity or source-query problems.

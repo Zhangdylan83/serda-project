@@ -402,3 +402,27 @@ the approved SERDA online/offline dependency process once. No LLM/GPU is needed.
 See [GA_SCHEMA_EXTRACTION.md](docs/GA_SCHEMA_EXTRACTION.md) for dependency commands,
 `-OutputRoot`/`-PythonPath` options, sparse JSON semantics, actual field coverage,
 known rule limitations and the later curated-note adapter.
+
+## Patient Coverage & Missingness Audit Summary for Erika
+
+Use the new standalone coverage mode, not full EDA or GA extraction:
+
+```powershell
+cd "$env:USERPROFILE\Desktop\serda-project"
+git pull --ff-only origin main
+.\scripts\run_patient_coverage.ps1 `
+  -DataDir 'Z:\PHI' `
+  -OutputRoot 'Z:\ApprovedRestrictedProject\serda-results'
+```
+
+Replace OutputRoot with your actual approved restricted project directory. No YAML
+changes are needed for the known mappings. This run reads all eight Excel sources
+for identifier coverage, writes a new timestamped folder, and does not reconstruct
+Notes or calculate predictors. Start with `aggregate/Patient_Coverage_Missingness_Summary.md`,
+`patient_coverage_summary.csv`, `pairwise_overlap_matrix.csv`, and
+`directional_patient_gaps.csv`. Keep all of `restricted_SERDA_ONLY/` inside SERDA.
+
+The denominator is explicitly the observed union, not Demographics or a confirmed
+SOCARE cohort. An incomplete run reports partial coverage and exits nonzero; do not
+interpret blank matrix cells as zero. See [PATIENT_COVERAGE_AUDIT.md](docs/PATIENT_COVERAGE_AUDIT.md)
+for optional independently validated roster coverage and analyst SQL-review questions.
