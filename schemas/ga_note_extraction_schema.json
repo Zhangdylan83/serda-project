@@ -1,0 +1,604 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urmc-geriatric-oncology/ga-note-extraction/v2.0",
+  "title": "Geriatric assessment extraction from the geriatric oncology H&P (parsimonious)",
+  "description": "Discrete GA data from the URMC geriatric oncology H&P (GA section, HPI, exam). Scope: recognized GA instruments and the ASCO GA domains plus falls and objective physical performance. Not intended for full narrative coverage.",
+  "x-extraction-rules": [
+    "Use any section of the H&P. Extract only what is stated; null means not documented.",
+    "Scores: copy value and denominator as written; do not calculate totals or percentages.",
+    "score.interpretation and clinician_status record the clinician's documented judgment (including a clinical impression such as 'may have cognitive issues'); leave null if none is stated. Patient/family report of no change in mood or cognition does not set clinician_status.",
+    "ADL/IADL items: if the note gives only a global statement ('independent with ADLs', 'needs assist with dressing, otherwise independent'), fill the listed items from it and set source='global_statement'; if items are listed individually, source='itemized'. Do not fill items when the note says only 'impaired IADL' without naming which.",
+    "ADL items = bathing, dressing, eating, transferring, walking, toileting. IADL items = OARS: telephone, transportation, shopping, meal_preparation, housework, medications, finances.",
+    "SPPB 'stands' labels can refer to balance stands; assign subscores so they sum to the documented total.",
+    "Falls: record the look-back actually stated (6 or 12 months); null if unstated.",
+    "Counts written loosely use the qualifier ('~9' approximate; '>10' greater_than)."
+  ],
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "note_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "note_date": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "performance_status": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "ecog": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 4
+        },
+        "kps": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 100
+        }
+      }
+    },
+    "physical_function": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clinician_status": {
+          "$ref": "#/$defs/clinician_status"
+        },
+        "ves13": {
+          "$ref": "#/$defs/score",
+          "description": "VES-13, 0-10; >=3 vulnerable."
+        },
+        "adl": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "enum": [
+                "itemized",
+                "global_statement",
+                null
+              ]
+            },
+            "bathing": {
+              "$ref": "#/$defs/function_level"
+            },
+            "dressing": {
+              "$ref": "#/$defs/function_level"
+            },
+            "eating": {
+              "$ref": "#/$defs/function_level"
+            },
+            "transferring": {
+              "$ref": "#/$defs/function_level"
+            },
+            "walking": {
+              "$ref": "#/$defs/function_level"
+            },
+            "toileting": {
+              "$ref": "#/$defs/function_level"
+            }
+          }
+        },
+        "iadl": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "source": {
+              "enum": [
+                "itemized",
+                "global_statement",
+                null
+              ]
+            },
+            "telephone": {
+              "$ref": "#/$defs/function_level"
+            },
+            "transportation": {
+              "$ref": "#/$defs/function_level"
+            },
+            "shopping": {
+              "$ref": "#/$defs/function_level"
+            },
+            "meal_preparation": {
+              "$ref": "#/$defs/function_level"
+            },
+            "housework": {
+              "$ref": "#/$defs/function_level"
+            },
+            "medications": {
+              "$ref": "#/$defs/function_level"
+            },
+            "finances": {
+              "$ref": "#/$defs/function_level"
+            },
+            "total": {
+              "$ref": "#/$defs/score",
+              "description": "OARS IADL total if documented (0-14)."
+            }
+          }
+        },
+        "mos_physical_function": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "vigorous_activities": {
+              "$ref": "#/$defs/limited3"
+            },
+            "moderate_activities": {
+              "$ref": "#/$defs/limited3"
+            },
+            "lifting_groceries": {
+              "$ref": "#/$defs/limited3"
+            },
+            "climbing_several_flights": {
+              "$ref": "#/$defs/limited3"
+            },
+            "climbing_one_flight": {
+              "$ref": "#/$defs/limited3"
+            },
+            "bending_kneeling_stooping": {
+              "$ref": "#/$defs/limited3"
+            },
+            "walking_more_than_mile": {
+              "$ref": "#/$defs/limited3"
+            },
+            "walking_several_blocks": {
+              "$ref": "#/$defs/limited3"
+            },
+            "walking_one_block": {
+              "$ref": "#/$defs/limited3"
+            },
+            "bathing_dressing": {
+              "$ref": "#/$defs/limited3"
+            },
+            "score": {
+              "$ref": "#/$defs/score",
+              "description": "PF-10 score if documented."
+            }
+          },
+          "description": "MOS/SF-36 PF-10. walking_one_block is a CARG toxicity input."
+        },
+        "assistive_device": {
+          "enum": [
+            "none",
+            "cane",
+            "walker",
+            "wheelchair",
+            null
+          ],
+          "description": "Most supportive device used."
+        }
+      }
+    },
+    "physical_performance": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clinician_status": {
+          "$ref": "#/$defs/clinician_status"
+        },
+        "sppb_total": {
+          "$ref": "#/$defs/score",
+          "description": "0-12; <=9 impaired."
+        },
+        "sppb_balance": {
+          "$ref": "#/$defs/score",
+          "description": "0-4."
+        },
+        "sppb_gait": {
+          "$ref": "#/$defs/score",
+          "description": "0-4."
+        },
+        "sppb_chair_stands": {
+          "$ref": "#/$defs/score",
+          "description": "0-4."
+        },
+        "gait_speed_m_per_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "timed_up_and_go_s": {
+          "type": [
+            "number",
+            "null"
+          ]
+        }
+      }
+    },
+    "falls": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clinician_status": {
+          "$ref": "#/$defs/clinician_status"
+        },
+        "any_fall": {
+          "enum": [
+            "yes",
+            "no",
+            null
+          ]
+        },
+        "lookback_months": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "number_of_falls": {
+          "$ref": "#/$defs/count"
+        }
+      }
+    },
+    "cognition": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clinician_status": {
+          "$ref": "#/$defs/clinician_status"
+        },
+        "moca": {
+          "$ref": "#/$defs/score",
+          "description": "/30; <26 positive."
+        },
+        "bomc": {
+          "$ref": "#/$defs/score",
+          "description": "/28; higher worse; >=11 impaired, 5-10 borderline."
+        },
+        "mini_cog": {
+          "$ref": "#/$defs/score",
+          "description": "/5; <=2 positive."
+        },
+        "mmse": {
+          "$ref": "#/$defs/score",
+          "description": "/30."
+        },
+        "slums": {
+          "$ref": "#/$defs/score",
+          "description": "/30."
+        }
+      }
+    },
+    "psychological": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clinician_status": {
+          "$ref": "#/$defs/clinician_status"
+        },
+        "gds15": {
+          "$ref": "#/$defs/score",
+          "description": "0-15; >=5 positive."
+        },
+        "gad7": {
+          "$ref": "#/$defs/score",
+          "description": "0-21; >=10 positive."
+        }
+      }
+    },
+    "comorbidity": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clinician_status": {
+          "$ref": "#/$defs/clinician_status"
+        },
+        "condition_count": {
+          "$ref": "#/$defs/count"
+        },
+        "vision": {
+          "$ref": "#/$defs/sensory"
+        },
+        "hearing": {
+          "$ref": "#/$defs/sensory",
+          "description": "Fair or worse is a CARG toxicity input."
+        }
+      }
+    },
+    "nutrition": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clinician_status": {
+          "$ref": "#/$defs/clinician_status"
+        },
+        "weight_loss": {
+          "enum": [
+            "yes",
+            "no",
+            null
+          ]
+        },
+        "weight_loss_amount": {
+          "$ref": "#/$defs/weight"
+        },
+        "weight_loss_lookback_months": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "current_weight": {
+          "$ref": "#/$defs/weight"
+        },
+        "bmi": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "mna_sf": {
+          "$ref": "#/$defs/score",
+          "description": "0-14; 12-14 normal, 8-11 at risk, 0-7 malnourished."
+        }
+      }
+    },
+    "polypharmacy": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clinician_status": {
+          "$ref": "#/$defs/clinician_status"
+        },
+        "medication_count": {
+          "$ref": "#/$defs/count"
+        },
+        "pims_present": {
+          "enum": [
+            "yes",
+            "no",
+            null
+          ]
+        }
+      }
+    },
+    "social_support": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "clinician_status": {
+          "$ref": "#/$defs/clinician_status"
+        },
+        "lives_alone": {
+          "enum": [
+            "yes",
+            "no",
+            null
+          ]
+        },
+        "has_caregiver": {
+          "enum": [
+            "yes",
+            "no",
+            null
+          ]
+        },
+        "mos_social_support_tangible": {
+          "$ref": "#/$defs/score",
+          "description": "0-100."
+        },
+        "mos_social_support_emotional": {
+          "$ref": "#/$defs/score",
+          "description": "0-100."
+        },
+        "mos_social_activity": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "interference_time_4wk": {
+              "enum": [
+                "all_of_the_time",
+                "most_of_the_time",
+                "some_of_the_time",
+                "a_little_of_the_time",
+                "none_of_the_time",
+                null
+              ],
+              "description": "CARG toxicity input."
+            },
+            "change_6mo": {
+              "enum": [
+                "much_less_active",
+                "somewhat_less_active",
+                "about_the_same",
+                "somewhat_more_active",
+                "much_more_active",
+                null
+              ]
+            },
+            "vs_peers": {
+              "enum": [
+                "much_more_limited",
+                "somewhat_more_limited",
+                "about_the_same",
+                "somewhat_less_limited",
+                "much_less_limited",
+                null
+              ]
+            },
+            "interference_extent_4wk": {
+              "enum": [
+                "not_at_all",
+                "slightly",
+                "moderately",
+                "quite_a_bit",
+                "extremely",
+                null
+              ]
+            }
+          },
+          "description": "MOS Social Activity Limitations (4 items)."
+        }
+      }
+    }
+  },
+  "$defs": {
+    "score": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "interpretation": {
+          "enum": [
+            "normal",
+            "borderline",
+            "impaired",
+            null
+          ],
+          "description": "As documented."
+        }
+      }
+    },
+    "clinician_status": {
+      "enum": [
+        "impaired",
+        "not_impaired",
+        null
+      ],
+      "description": "Clinician's documented judgment for the domain; null if none stated."
+    },
+    "function_level": {
+      "enum": [
+        "independent",
+        "needs_assistance",
+        "dependent",
+        null
+      ]
+    },
+    "limited3": {
+      "enum": [
+        "limited_a_lot",
+        "limited_a_little",
+        "not_limited_at_all",
+        null
+      ]
+    },
+    "sensory": {
+      "enum": [
+        "excellent",
+        "good",
+        "fair",
+        "poor",
+        "impaired_unspecified",
+        null
+      ]
+    },
+    "count": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "qualifier": {
+          "enum": [
+            "exact",
+            "approximate",
+            "greater_than",
+            null
+          ]
+        }
+      }
+    },
+    "weight": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "value": {
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "unit": {
+          "enum": [
+            "lb",
+            "kg",
+            null
+          ]
+        }
+      }
+    }
+  }
+}

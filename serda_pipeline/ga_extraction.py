@@ -75,6 +75,9 @@ def _patient(value, key):
 
 def reference_days(root, config, patient_key):
     """Stream only direct identifiers and CONTACT_DATE; never infer crosswalks."""
+    from .ga_input import master
+    approved = master(config, patient_key)
+    if approved is not None: return approved
     from .mrn_audit import _workbook
     result = defaultdict(set)
     invalid = set()
@@ -234,6 +237,13 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
     separator = {'newline':'\n', 'space':' ', 'none':''}[join]
     identity_verified = bool(notes_settings.get('note_key_verified') and notes_settings.get('note_key_fields'))
     reference, invalid_reference = reference_days(root, config, patient_key)
+    from .ga_input import targets
+    target_rows = targets(config, patient_key)
+    if target_rows is not None and len(notes_settings.get('note_key_fields', [])) != 1:
+        raise PipelineError('Target manifest currently requires exactly one configured document key.')
+    target_index = {json.dumps([r['target_note_key']], ensure_ascii=False): r for r in target_rows or []}
+    target_seen = set()
+    target_audit = []
     path = find_workbook(root, config, type('LocalReport', (), {'data': {'missing_files': [], 'files_found': {} }})())
     summary = Counter()
     coverage = defaultdict(Counter)
@@ -401,9 +411,18 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
                 type_match = bool(kind and any(p.search(kind) for p in type_patterns))
                 template_match = bool(text and any(p.search(text) for p in template_patterns))
                 evidence = ';'.join(name for name,yes in [('anchor_yes',flag=='Yes'),('reference_date',date_match),('note_type',type_match),('ga_template',template_match)] if yes)
+                target = target_index.get(key)
+                target_ok = bool(target and target['patient_key'] == patient and target['anchor_date'] == day
+                                 and date_match and patient not in invalid_reference and len(dates) == 1)
+                if target_ok: evidence += ';confirmed_target_manifest'
+                if target:
+                    target_seen.add(key)
+                    target_audit.append([key, 'matched' if target_ok else 'patient_or_anchor_conflict', flag])
                 if review_callback is not None:
                     review_callback(dict(key=key, rows=rows, reasons=reasons, warnings=warnings, manual_review=manual_review, metadata=metadata,
                         patient=patient, day=day, kind=kind, flag=flag,
+                        target_manifest_enabled=target_rows is not None, target_confirmed=target_ok,
+                        target_manifest_conflict=bool(target and not target_ok),
                         reference_days=sorted(dates), invalid_reference=patient in invalid_reference,
                         source_file=path.name, source_sheet=source_sheet, header_row=header_row,
                         separator=separator, line_start=notes_settings.get('line_start',1)))
@@ -412,6 +431,8 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
                 elif manual_review: status = 'pending_reconstruction_review'
                 elif patient is None or not dates or patient in invalid_reference: status = 'excluded_linkage_or_reference'
                 elif len(dates)>1: status = 'ambiguous_multiple_reference_anchors'
+                elif target_rows is not None and not target_ok: status = 'excluded_target_manifest_unmatched'
+                elif target_ok: status = 'confirmed_by_configured_rules'
                 elif not date_match or flag=='No': status = 'excluded_not_anchor_ga'
                 elif flag=='Yes' and type_match and template_match: status = 'confirmed_by_configured_rules'
                 elif flag=='Yes' and (type_match or template_match): status = 'candidate_ga_note'
@@ -440,6 +461,9 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
          ['note_ref','candidate_key','metadata_evidence_json','warnings','manual_review_reasons','hard_blocks'],metadata_rows)
     # More than one rule-eligible note at a patient/anchor date is an unresolved
     # selection, even when each note separately passed the configured rules.
+    if target_rows is not None:
+        target_audit.extend([key, 'missing_document', ''] for key in target_index if key not in target_seen)
+        _csv(output/'ga_target_manifest_audit_SERDA_ONLY.csv', ['document_key','link_status','source_anchor_flag'], target_audit)
     eligible_statuses = {'confirmed_by_configured_rules','candidate_ga_note'}
     by_patient_day = Counter((row[2],row[3]) for row in selection if row[6] in eligible_statuses)
     ambiguous_refs = set()
@@ -489,7 +513,9 @@ def run(root, output, config, patient_key='pat_id', review_callback=None):
              f'NOTE_CSN groups: {summary["csn_groups"]}; spanning multiple note IDs: {summary["csn_multiple_note_ids"]}; spanning multiple patients: {summary["csn_multiple_patients"]}; repeated LINE groups: {summary["csn_repeated_line_groups"]}. These are structural flags, not proof of note identity.',
              f'Confirmed by configured rules: {summary["confirmed_by_configured_rules"]}; candidate: {summary["candidate_ga_note"]}; eligible denominator: {eligible}.',
              f'Patient-level review queue entries: {len(review)}. Selection/exclusion counts:',
-             'Anchor=Yes and exact Demographics date are necessary but not sufficient. Multiple Demographics anchor days remain ambiguous.',
+             ('Matching patient/date and confirmed target manifest required; source Anchor flag discrepancies remain in the manifest audit.' if target_rows is not None else
+              'Anchor=Yes and exact reference date are necessary but not sufficient. Multiple reference anchor days remain ambiguous.'),
+             'Anchor source: ' + config.get('ga_input',{}).get('anchor_source','demographics_reference') + '; Demographics reference mode does not establish clinical study eligibility.',
              'Note-key verification is a local export contract; contiguous LINEs cannot prove a missing terminal fragment does not exist.',
              'No real-data evaluation or human-reference annotation is implied. Erika should verify key granularity, author/type metadata, GA templates, fragment joining and scoring formats before treating fields as final.']
     lines.extend(f'- {name}: {count} note groups.' for name,count in sorted(summary.items())

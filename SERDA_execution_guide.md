@@ -323,3 +323,58 @@ Filter `ga_note_grouping_detail_SERDA_ONLY.csv` by `partition_comparison != same
 `ga_note_metadata_audit_SERDA_ONLY.csv` and the offline review HTML expose missing optional values separately from differing nonempty values. Mixed department/type/author/encounter values require investigation and sample approval, not automatic group splitting. Identity conflicts, conflicting note dates/timestamps, missing essential fragments and different text at the same LINE remain hard blocks. Identical duplicate fragments retain all Excel-row mappings. Numeric LINE order is recovered even if source rows are shuffled; gaps/starting position require review without asserting data loss or inserting text. Department provenance must be confirmed with the export owner before interpreting a difference clinically.
 
 Keep extraction comparison separate: this change alters preparation/auditing policy, not regex rules. An older package's baseline must use the prepared source version; do not edit its frozen notes or manifest. Re-prepare in a new folder to inspect the new grouping policy, and describe any changed sample/text boundaries when comparing outcomes. Real-file grouping equivalence and the clinical meaning of NOTE_CSN still require SERDA execution and export-definition review; no such result is claimed here.
+
+## Approved GA inputs and draft-schema small-sample review (CPU only)
+
+Use a new output directory outside the repository and input folder. Obtain approved
+cohort/target lists before enabling `approved_master`; do not manufacture these lists
+from keywords or set every record to confirmed. CSV columns and strict validation
+contracts are documented in README's GA input contracts section.
+
+Edit a local `config_serda.yaml` (merge these sections, do not duplicate YAML keys):
+
+```yaml
+notes:
+  note_key_fields: [note_csn]  # recognizes NOTE_CSN and NOTE_CSN_ID
+  note_key_verified: false   # per-sample approval remains required
+
+ga_input:
+  anchor_source: approved_master
+  cohort_anchor_file: 'Z:\ApprovedProject\cohort_anchor_master.csv'
+  target_note_manifest: 'Z:\ApprovedProject\target_ga_notes.csv'
+
+ga_validation:
+  sample_size: 8
+  field_registry: erika_draft
+```
+
+`Z:\ApprovedProject` is a placeholder: use your actual approved SERDA project
+storage. If authoritative files are unavailable, keep `anchor_source:
+demographics_reference` and both file paths `null`; the package remains exploratory.
+The target list is optional even with an approved master, but candidates then need
+clinical selection. Missing/multiple/blocked patients remain in the coverage audit;
+only unambiguous eligible candidates enter the sample pool.
+
+PowerShell, from the repository directory:
+
+```powershell
+$gaOutput = 'Z:\ApprovedProject\ga_schema_review_01'
+python run_pipeline.py --data-dir 'Z:\PHI' --output-dir "$gaOutput" --config config_serda.yaml --patient-key mrn --ga-validation-prepare
+```
+
+Read `input_scope_summary.md`, `reconstruction_audit.csv`, the SERDA-only target
+mapping audits and `review.html`. Fill references using the full note. In
+`sample_manifest.csv`, set the three approval fields to `yes` and supply a reviewer
+only after individually verifying document identity, completeness and target status.
+Then run:
+
+```powershell
+python run_pipeline.py --data-dir 'Z:\PHI' --output-dir "$gaOutput" --config config_serda.yaml --ga-validation-run --ga-validation-label baseline
+python run_pipeline.py --data-dir 'Z:\PHI' --output-dir "$gaOutput" --config config_serda.yaml --ga-validation-evaluate --ga-validation-label baseline
+```
+
+Run/Evaluate use frozen samples/configuration, not the full Excel again. Prepare
+scans Notes and the configured anchor source, not all eight clinical datasets.
+Source Excel files and prior outputs are not modified. This mode reports coverage,
+unsupported fields and reference comparisons; no overall accuracy, inferred labels,
+clinical missingness claims or validated `ga_features.json` export is produced.

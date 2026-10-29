@@ -151,3 +151,75 @@ GA extraction and validation Prepare now write `ga_linkage_schema.json` and `ga_
 Global NOTE_CSN conflicts in MRN, PAT_ID, note ID or contradictory MRN columns block every affected GA/validation subgroup, even when a configured composite key would split the rows. Multiple PAT_ID values are an unresolved identity discrepancy, not proof of multiple real people. The detail files preserve all source-row relationships for investigation. Optional service department is mapped using `columns.notes.department` or unambiguous aliases SERVICE_DEPARTMENT, SERVICE_DEPARTMENT_NAME, DEPARTMENT_NAME. Partial missingness is distinguished from multiple nonempty values; department is never appended to the grouping key. Its provenance remains unverified.
 
 GA/validation reconstruction sorts numeric LINE values, retains every source-row mapping for identical duplicates, and blocks conflicting same-LINE text. Gaps and unexpected starts require sample review; sortable source order is only an audit flag. Optional metadata conflicts permit a proposed text and sample review but withhold automatic GA extraction until resolved/approved. Original strict Notes audit outputs retain their conservative structural-completeness checks; use validation for sample-scoped adjudication. Extraction regexes, including the unsupported `15/30 on MoCA` baseline example, have not changed.
+
+### GA input contracts and Erika draft-schema review
+
+The existing eight-dataset audit and predictor tables are unchanged. GA still defaults
+ to the exploratory Demographics reference path and the original `baseline` field
+registry. Neither path establishes study eligibility. The original Erika JSON is
+preserved in `schemas/ga_note_extraction_schema.json`; its filename/version does not
+mean it is a final clinical specification.
+
+For a **new** validation package, configure `ga_validation.field_registry: erika_draft`.
+This produces the full leaf-field review grid, including unsupported fields, with
+separate value and `max` rows. It keeps the CPU extraction rules unchanged. MoCA and
+VES-13 score components have partial mappings; SPPB total and GDS-15 mappings remain
+unsupported pending total/version adjudication. All interpretations, clinical labels,
+and other unimplemented fields remain unsupported. Machine `not_found` never means
+clinically `not_documented`. `ga_extraction_results.json` is a machine-status/evidence
+container, **not** a final schema-complete `ga_features.json`.
+
+Optionally set `ga_input.anchor_source: approved_master` and an absolute SERDA path
+in `ga_input.cohort_anchor_file`. The UTF-8 CSV contract is:
+
+```
+patient_key,patient_key_type,anchor_date,eligible,confirmation_status,source,reviewer
+```
+
+Identifiers are strings; `patient_key_type` must equal CLI `mrn` or `pat_id`; dates
+must be `YYYY-MM-DD`; eligibility is `yes`/`no`. Every row requires `confirmed`,
+a source and reviewer. One row per patient is required. Duplicate/conflicting rows
+stop GA execution rather than select an anchor. This file is an externally approved
+input, not eligibility inferred by the program. In this mode Demographics is not
+required or read by GA; the existing independent audit can cross-check it separately.
+
+An optional `ga_input.target_note_manifest` CSV supplies clinician-confirmed targets:
+
+```
+patient_key,patient_key_type,anchor_date,target_note_key,selection_source,confirmation_status,reviewer
+```
+
+This first interface requires exactly **one** configured `notes.note_key_fields`
+entry. `target_note_key` is the raw string value of that mapped document column
+(e.g. NOTE_CSN_ID), not MRN, an encounter fallback, or a generated sample hash.
+Multiple target rows for one patient/date, repeated document keys, missing provenance,
+or unconfirmed entries fail validation. Document identity, patient and date must
+still agree with source records and the anchor reference; a manifest cannot override
+reconstruction conflicts. A confirmed matching manifest takes precedence over GA
+keywords and Anchor Yes; the actual source Anchor flag is retained for discrepancy
+review. Per-sample identity, completeness and target approval remain mandatory.
+
+New review outputs include:
+
+- `input_scope_summary.md`: declared input authority and limitations.
+- `reconstruction_audit.csv`: separate reconstruction, anchor and target states.
+- `ga_target_manifest_audit_SERDA_ONLY.csv` under `prepare_audit/`: matched,
+  conflicting and missing target documents, with source Anchor flags.
+- `patient_target_mapping_SERDA_ONLY.csv` when using an approved master: eligible
+  patient/anchor coverage including missing, blocked and multiple candidates.
+- `erika_schema_snapshot.json`, `support_registry.csv`, complete reference/prediction
+  grids, and run-specific `ga_extraction_results.json` in draft-schema mode.
+
+Historical off-anchor notes retain reconstructed text and source mappings; they
+are excluded from target extraction, not labeled reconstruction failures. They
+are not automatically admitted to any future predictor. In draft-schema mode,
+multiple target candidates for a patient/date are held for resolution, not arbitrarily
+sampled. All patient-level files, full text, references and HTML remain sensitive
+SERDA-only outputs. Frozen packages must not be edited/resampled after code changes;
+prepare a new directory. The input files and schema snapshot are fingerprinted.
+
+Clinical decisions still needed: authoritative cohort/anchor/target list; supplemental
+nutrition/social-work notes; uncertain clinician impressions versus binary status;
+SPPB component assignment without inferred scores; and GDS version evidence. No new
+clinical-label extractor or frailty predictor is implemented. Real-data validation
+must occur in SERDA; software fixtures are not clinical evaluation.

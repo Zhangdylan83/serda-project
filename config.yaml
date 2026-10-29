@@ -66,3 +66,13 @@ ga_extraction:
 # to sample_manifest.csv and never enable global notes.note_key_verified.
 ga_validation:
   sample_size: 8
+  field_registry: baseline  # erika_draft enables the full schema review grid
+
+# Independent GA input contract. Defaults preserve the exploratory reference path.
+# Absolute SERDA paths only; these files contain PHI and must never enter Git.
+ga_input:
+  anchor_source: demographics_reference  # or approved_master
+  cohort_anchor_file: null
+  target_note_manifest: null
+# In the existing ga_validation section, set field_registry: erika_draft
+# to create a full draft-schema review grid; omitted/default = baseline.
