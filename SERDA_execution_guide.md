@@ -445,3 +445,11 @@ and runtime outputs; exit 0 plus `synthetic_smoke_checks.json` passed=true is re
 Actual patient-note inference is separately authorized and requires this successful
 Windows smoke receipt. See [LOCAL_LLM_EXPERIMENT.md](docs/LOCAL_LLM_EXPERIMENT.md).
 DGX mock protocol tests do not establish Windows launcher or real-model success.
+
+The tracked local-LLM configuration now requests the complete Erika clinical schema
+(all ten domains), split into small field batches. Rerun the same synthetic command
+after this update; older four-domain pass receipts are invalid for the new version.
+Compare `llm_proposals_for_review.jsonl` (source-grounded model suggestions) with
+`llm_ga_features.jsonl` (automatically verified values) and `review.html`. Both JSON
+files follow Erika's schema; the proposal file explicitly requires human review.
+Metadata note ID/date come only from reliable frozen source metadata, never LLM guesses.

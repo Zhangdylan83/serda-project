@@ -34,7 +34,7 @@ class Handler(BaseHTTPRequestHandler):
         assert data['chat_template_kwargs']['enable_thinking'] is False
         assert data['response_format']['type']=='json_schema'
         user=json.loads(data['messages'][-1]['content']);domain=user['domain'];text=user['source_text']
-        _,audit=extract(text);fields=domain_fields(domain)
+        _,audit=extract(text);fields=user['allowed_fields']
         findings=[dict(field_path=a['field_path'],value=a['predicted_value'],quote=a['accepted_evidence'][0]['evidence_text'],certainty='explicit')
                   for a in audit if a['field_path'] in fields and a['extraction_status']=='extracted']
         self.send({'choices':[{'finish_reason':'stop','message':{'content':json.dumps({'findings':findings})}}],

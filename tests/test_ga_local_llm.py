@@ -27,7 +27,7 @@ class MockClient:
     def tokens(self,msg):return len(json.dumps(msg))//4
     def generate(self,domain,msg):
         self.calls.append((domain,msg));text=json.loads(msg[-1]['content'])['source_text']
-        _,audit=extract(text);fields=llm.domain_fields(domain);findings=[]
+        _,audit=extract(text);fields=json.loads(msg[-1]['content'])['allowed_fields'];findings=[]
         for a in audit:
             if a['field_path'] in fields and a['extraction_status']=='extracted':
                 findings.append(finding(a['field_path'],a['predicted_value'],a['accepted_evidence'][0]['evidence_text']))
@@ -99,7 +99,7 @@ class LLMTests(unittest.TestCase):
         self.assertEqual(obj,{})
         self.assertEqual(next(a for a in audit if a['field_path']=='cognition.moca.value')['status'],'conflicting')
         obj,audit=llm.consolidate(r,hits[:1],cfg,{(r['sample_id'],'cognition'):False})
-        self.assertEqual(obj,{});self.assertTrue(all(a['status']=='domain_incomplete' for a in audit))
+        self.assertEqual(obj,{});self.assertTrue(all(a['status']=='domain_incomplete' for a in audit if a['field_path'].startswith('cognition.')))
 
     def test_context_budget_and_all_chunk_coverage(self):
         cfg=llm.load_config(CONFIG);cfg.update(domains=['cognition'],chunk_characters=256,chunk_overlap=40)
@@ -133,7 +133,7 @@ class LLMTests(unittest.TestCase):
             import csv
             with (out/'llm_regex_comparison.csv').open() as f:rows=list(csv.DictReader(f))
             self.assertEqual({r['sample_id'] for r in rows},{'SYNTHETIC_001'})
-            self.assertEqual({r['field_path'] for r in rows},set().union(*(set(llm.domain_fields(d)) for d in llm.DOMAIN_PREFIXES)))
+            self.assertEqual({r['field_path'] for r in rows},set().union(*(set(llm.domain_fields(d)) for d in llm.DOMAIN_PREFIXES))|{'note_id','note_date'})
             self.assertIn('exact_quote_and_field_value_rule_verified',(out/'llm_evidence.jsonl').read_text())
             self.assertTrue((out/'request_runtime.csv').exists())
             with self.assertRaises(llm.LLMError):llm.run(CONFIG,out,server_factory=MockServer)
@@ -165,7 +165,7 @@ class LLMTests(unittest.TestCase):
                 self.assertTrue(llm.run(config,root/'output',server_factory=SyntheticManager))
             manifest=json.loads((root/'output'/'run_manifest.json').read_text())
             self.assertEqual(manifest['runtime'],'synthetic_development_or_mock')
-            self.assertEqual(manifest['request_count'],4)
+            self.assertEqual(manifest['request_count'],sum(len(llm.field_batches(d)) for d in cfg['domains']))
             self.assertTrue(manifest['server']['model_sha256'])
             with socket.socket() as sock:self.assertNotEqual(sock.connect_ex(('127.0.0.1',port)),0)
 
@@ -196,3 +196,77 @@ class LLMTests(unittest.TestCase):
                 receipt['code_sha256']=llm.code_hashes()
                 (path/'run_manifest.json').write_text(json.dumps(receipt))
                 self.assertEqual(llm.authorize_package('not opened',True,path,'test-config')['mode'],'synthetic')
+
+    def test_full_schema_partition_and_prompt_bounds(self):
+        cfg=llm.load_config(CONFIG)
+        self.assertEqual(set(cfg['domains']),set(llm.CLINICAL_DOMAINS))
+        all_paths=[]
+        for domain in cfg['domains']:
+            batches=llm.field_batches(domain,cfg['fields_per_prompt'])
+            paths=[p for batch in batches for p in batch]
+            self.assertEqual(set(paths),set(llm.domain_fields(domain)))
+            self.assertEqual(len(paths),len(set(paths)))
+            self.assertTrue(all(len(batch)<=cfg['fields_per_prompt'] for batch in batches))
+            for batch in batches:
+                for path in batch:
+                    if path.endswith('.value'):
+                        parent=path.rsplit('.',1)[0]
+                        self.assertTrue(all(p in batch for p in paths if p.startswith(parent+'.')))
+                prompt=llm.messages(domain,'SYNTHETIC note.',batch)
+                self.assertEqual(set(json.loads(prompt[-1]['content'])['allowed_fields']),set(batch))
+            all_paths.extend(paths)
+        self.assertEqual(len(all_paths),114)
+        self.assertEqual(set(all_paths)|{'note_id','note_date'},set(llm.schema_leaves()[1]))
+
+    def test_batch_schema_rejects_out_of_batch_field(self):
+        fields=['cognition.moca.value','cognition.moca.max','cognition.moca.interpretation']
+        with self.assertRaises(llm.LLMError):
+            llm.parse_reply(reply([finding('cognition.mmse.value',20,'MMSE 20/30')]),'cognition',fields)
+
+    def test_full_run_has_ten_domain_checks_and_metadata(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out=Path(tmp)/'full'
+            self.assertTrue(llm.run(CONFIG,out,server_factory=MockServer))
+            manifest=json.loads((out/'run_manifest.json').read_text())
+            self.assertTrue(manifest['full_clinical_schema_requested'])
+            self.assertEqual(manifest['clinical_field_count'],114)
+            evidence=json.loads((out/'llm_evidence.jsonl').read_text())
+            self.assertEqual(len(evidence['fields']),116)
+            obj=json.loads((out/'llm_ga_features.jsonl').read_text())
+            self.assertTrue(set(llm.CLINICAL_DOMAINS).issubset(obj))
+            self.assertEqual(obj['note_id'],'SYNTHETIC_DOCUMENT_ONLY')
+            self.assertTrue((out/'llm_proposals_for_review.jsonl').exists())
+
+    def test_metadata_never_substitutes_note_csn_or_patient(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);p=root/'candidate.json'
+            p.write_text(json.dumps({'note_date':'2024-01-01','raw_rows':[{'note_id':None,'note_csn':'SYNTHETIC_CONTACT','note_date':'2024-01-01'}]}))
+            r={'source_package_candidate':'candidate.json'}
+            llm.attach_metadata([r],root,{'candidate.json':llm.digest(p)})
+            self.assertNotIn('note_id',r['schema_metadata'])
+            self.assertEqual(r['schema_metadata']['note_date']['value'],'2024-01-01')
+
+    def test_novel_llm_value_is_exported_for_review_not_silently_dropped(self):
+        text=llm.SYNTHETIC_TEXT.replace('Independent with all ADLs.','The patient requires another person to help with showering.')
+        quote='The patient requires another person to help with showering.'
+        class NovelClient(MockClient):
+            def generate(self,domain,msg):
+                result=super().generate(domain,msg)
+                fields=json.loads(msg[-1]['content'])['allowed_fields']
+                if 'physical_function.adl.bathing' in fields:
+                    obj=json.loads(result['choices'][0]['message']['content'])
+                    obj['findings'].append(finding('physical_function.adl.bathing','needs_assistance',quote))
+                    result['choices'][0]['message']['content']=json.dumps(obj)
+                return result
+        class NovelServer(MockServer):
+            def __init__(self,cfg,out):self.client=NovelClient(cfg);self.metadata={'mock':True}
+        r=llm.synthetic_records()[0];r['text']=text
+        with tempfile.TemporaryDirectory() as tmp,patch.object(llm,'synthetic_records',return_value=[r]):
+            out=Path(tmp)/'novel'
+            self.assertFalse(llm.run(CONFIG,out,server_factory=NovelServer))
+            proposal=json.loads((out/'llm_proposals_for_review.jsonl').read_text())
+            accepted=json.loads((out/'llm_ga_features.jsonl').read_text())
+            self.assertEqual(proposal['physical_function']['adl']['bathing'],'needs_assistance')
+            self.assertNotIn('bathing',accepted.get('physical_function',{}).get('adl',{}))
+            evidence=json.loads((out/'llm_evidence.jsonl').read_text())
+            self.assertEqual(next(f for f in evidence['fields'] if f['field_path']=='physical_function.adl.bathing')['status'],'review_required')

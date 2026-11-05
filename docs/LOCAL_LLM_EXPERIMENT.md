@@ -2,8 +2,10 @@
 
 This separate workflow compares Qwen3 proposals with the existing Erika Regex
 extractor on identical frozen text, note IDs and schema fields. The old Regex engine,
-EDA/audits and source packages are unchanged. Initial domains: Falls, ADL/IADL,
-Cognition, Nutrition. No corpus discovery, Excel read, Prepare or note resampling.
+EDA/audits and source packages are unchanged. The default now requests all ten clinical domains and every clinical leaf in Erika’s
+schema: performance status, physical function (including ADL/IADL and MOS), physical
+performance, falls, cognition, psychological, comorbidity, nutrition, polypharmacy
+and social support. No corpus discovery, Excel read, Prepare or note resampling.
 
 ## First run: synthetic text only
 
@@ -33,7 +35,7 @@ Tracked `configs/serda_ga_llm.yaml` sets:
 - CPU only (`--n-gpu-layers 0`), four threads, one parallel slot, batch 128;
 - context 4096, maximum generated tokens 768, deterministic temperature 0/seed 42;
 - Qwen thinking disabled in server template kwargs and each request;
-- 2500-character overlapping windows (overlap 400), maximum 128 generation requests;
+- 2500-character overlapping windows (overlap 400), maximum 512 generation requests;
 - maximum eight explicitly selected frozen notes, no automatic sample truncation.
 
 One managed llama-server process serves the whole run and is stopped on exit/error.
@@ -63,7 +65,12 @@ The launcher has no automatic fallback to another API, host, model or unbudgeted
 
 ## Structured extraction and evidence
 
-Each domain uses a small field-specific prompt and a strict JSON Schema response:
+Each domain uses small field-specific prompts, with at most eight fields per batch
+by default. Score/count/weight components stay together. The ten domains currently
+produce 19 prompt batches per full-text window (rather than the former four-domain
+workflow); expect more CPU time. Context and request-budget limits remain enforced.
+
+Each batch uses a small field-specific prompt and a strict JSON Schema response:
 `findings` contains field path, typed value, exact source quote and explicit/uncertain
 status. Allowed paths/types/enums derive from Erika's actual schema. Cognitive
 clinician judgments cannot be inferred from MoCA; unspecified denominators, labels
@@ -101,6 +108,11 @@ prove clinical entailment or eliminate all hallucination/interpretation errors.
 
 ## Outputs and runtime
 
+- `llm_proposals_for_review.jsonl`: independent schema-valid LLM proposals whose
+  quotes were located in source, including novel phrasings that Regex cannot verify.
+  These are **human-review candidates**, not clinical truth; consult evidence statuses.
+  Fabricated quotes, contradicted values, conflicting values and incomplete domains
+  do not enter this file.
 - `llm_ga_features.jsonl`: sparse accepted objects conforming to Erika's schema;
   unresolved fields omitted, not converted to clinical nulls.
 - `llm_evidence.jsonl`: accepted/review/rejected proposals, quotes, offsets and Excel
@@ -112,6 +124,8 @@ prove clinical entailment or eliminate all hallucination/interpretation errors.
   parse/truncation outputs. Sensitive, never share or commit.
 - `review.html`: escaped offline full-note reference-first review and side-by-side
   table. No external scripts/assets/network requests.
+- `field_coverage.csv`: every requested clinical field plus two metadata fields,
+  with accepted/review/missing/incomplete/source-metadata counts.
 - `request_runtime.csv/json`: request wall time, actual prompt token count,
   completion usage and server timings where available. Output tokens/sec here is
   end-to-end, including template/tokenization/HTTP overhead, not raw eval speed.
@@ -160,3 +174,22 @@ HTTP calls, proxy bypass, model/server fingerprints and process cleanup. That pr
 loads **no model**; its runtime is explicitly labelled mock/development and cannot
 serve as a Windows patient-inference receipt. Actual PowerShell execution and Qwen
 quality/speed remain to be measured in SERDA.
+
+## Full-schema coverage and metadata
+
+The full tracked configuration covers all **114 clinical leaves**. Tests check that
+every clinical path appears exactly once in the field-batch partition. The audit
+and comparison grid additionally contain `note_id` and `note_date`, for 116 rows per
+note. These two fields are never guessed by the LLM: a document ID is copied only
+from unanimous nonempty `raw_rows.note_id`; a date requires a valid frozen ISO date
+consistent with all source-row dates. Missing metadata stays unavailable. NOTE_CSN,
+MRN and internal sample hashes are never substituted for NOTE_ID. Source metadata
+has a separate provenance/status, not an LLM extraction claim.
+
+The synthetic smoke test now includes at least one explicit value in each of the
+ten clinical domains. Passing it still does not prove full field accuracy or real-note
+performance. The old four-domain receipt no longer matches this code/configuration:
+run the full-schema synthetic test before any separately authorized patient run.
+The same launcher command is used, without YAML edits. Full schema means every
+clinical field is offered to the model; it does not mean every field should be filled.
+Unrecorded, unresolved and unsupported expressions must not be invented.

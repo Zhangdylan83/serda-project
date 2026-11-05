@@ -264,8 +264,8 @@ sparsity or source-query problems.
 
 ### Offline local CPU LLM experiment — synthetic first
 
-A separate domain-wise Qwen3/llama-server workflow is available for Falls, ADL/IADL,
-Cognition and Nutrition. Start with built-in synthetic notes only:
+A separate domain-wise Qwen3/llama-server workflow is available for all ten Erika clinical domains (114 clinical leaf fields),
+with small field batches and a 116-field review grid including source metadata. Start with built-in synthetic notes only:
 
 ```powershell
 .\scripts\run_ga_local_llm.ps1 -OutputRoot 'Z:\ApprovedRestrictedProject\ga-experiments'

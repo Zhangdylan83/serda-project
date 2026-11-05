@@ -12,9 +12,11 @@ output_tokens: 768
 batch_tokens: 128
 chunk_characters: 2500
 chunk_overlap: 400
-max_requests: 128
+max_requests: 512
 max_notes: 8
 startup_timeout_seconds: 180
 request_timeout_seconds: 240
 seed: 42
-domains: [falls, adl_iadl, cognition, nutrition]
+full_schema: true
+fields_per_prompt: 8
+domains: [performance_status, physical_function, physical_performance, falls, cognition, psychological, comorbidity, nutrition, polypharmacy, social_support]
