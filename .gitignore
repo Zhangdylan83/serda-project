@@ -33,3 +33,11 @@ slide_ready_findings.md
 ga_features.jsonl
 extraction_evidence.jsonl
 ga_schema_v1_*/
+# Local LLM weights and experiment outputs never belong in Git.
+*.gguf
+*.ggml
+ga_local_llm_*/
+llm_ga_features.jsonl
+llm_evidence.jsonl
+raw_local_responses_SERDA_ONLY.jsonl
+server_local.log

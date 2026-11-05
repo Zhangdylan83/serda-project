@@ -426,3 +426,22 @@ The denominator is explicitly the observed union, not Demographics or a confirme
 SOCARE cohort. An incomplete run reports partial coverage and exits nonzero; do not
 interpret blank matrix cells as zero. See [PATIENT_COVERAGE_AUDIT.md](docs/PATIENT_COVERAGE_AUDIT.md)
 for optional independently validated roster coverage and analyst SQL-review questions.
+
+## Local Qwen3 CPU experiment: synthetic smoke test first
+
+```powershell
+cd "$env:USERPROFILE\Desktop\serda-project"
+git pull --ff-only origin main
+.\scripts\run_ga_local_llm.ps1 -OutputRoot 'Z:\ApprovedRestrictedProject\ga-experiments'
+```
+
+Use your actual approved restricted Z: output directory. With no PackagePath,
+only built-in synthetic text is sent to a local server at 127.0.0.1. The script
+uses `.venv`, tracked `configs/serda_ga_llm.yaml`, the existing local GGUF and b12125
+llama-server. It creates a new unique experiment directory and stops the server on
+exit. No YAML edit, Excel scan or Prepare is needed. Inspect smoke checks, review
+and runtime outputs; exit 0 plus `synthetic_smoke_checks.json` passed=true is required.
+
+Actual patient-note inference is separately authorized and requires this successful
+Windows smoke receipt. See [LOCAL_LLM_EXPERIMENT.md](docs/LOCAL_LLM_EXPERIMENT.md).
+DGX mock protocol tests do not establish Windows launcher or real-model success.

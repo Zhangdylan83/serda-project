@@ -261,3 +261,23 @@ are unavailable, not zero-patient sets. See [definitions, commands, outputs and
 limitations](docs/PATIENT_COVERAGE_AUDIT.md). It does not replace any prior audit or GA
 extraction output and does not infer whether missing patients reflect clinical
 sparsity or source-query problems.
+
+### Offline local CPU LLM experiment — synthetic first
+
+A separate domain-wise Qwen3/llama-server workflow is available for Falls, ADL/IADL,
+Cognition and Nutrition. Start with built-in synthetic notes only:
+
+```powershell
+.\scripts\run_ga_local_llm.ps1 -OutputRoot 'Z:\ApprovedRestrictedProject\ga-experiments'
+```
+
+Use an existing approved restricted Z: directory. Tracked config points to the
+user-tested local Qwen3-1.7B GGUF and llama.cpp b12125. The server is persistent during
+the run, CPU-only and bound to literal 127.0.0.1; no external inference or tools.
+Structured proposals receive schema, exact-quote and conservative field/value
+verification; new phrasings go to human review. Regex side-by-side outputs and runtime
+measurements are saved without modifying baselines. Patient-package inference is a
+separate explicit authorization step gated on a successful matching Windows synthetic
+run. See [LOCAL_LLM_EXPERIMENT.md](docs/LOCAL_LLM_EXPERIMENT.md) for commands, limits,
+receipt requirements and the distinction between mock protocol tests and real Qwen
+execution. No patient inference was performed during development.

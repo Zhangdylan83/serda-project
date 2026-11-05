@@ -1,0 +1,20 @@
+# Offline experiment only. Default launcher uses built-in synthetic text.
+engine: local_llm_v1
+server_binary: 'Z:\LLM\llama-cpp\b12125\llama-server.exe'
+model_path: 'Z:\serda-models\Qwen3-1.7B-Q4_K_M.gguf'
+expected_llama_version: b12125
+host: 127.0.0.1
+port: 8097
+model_alias: socare-qwen3-local
+threads: 4
+context_tokens: 4096
+output_tokens: 768
+batch_tokens: 128
+chunk_characters: 2500
+chunk_overlap: 400
+max_requests: 128
+max_notes: 8
+startup_timeout_seconds: 180
+request_timeout_seconds: 240
+seed: 42
+domains: [falls, adl_iadl, cognition, nutrition]
