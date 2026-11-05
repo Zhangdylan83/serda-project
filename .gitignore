@@ -43,3 +43,5 @@ raw_local_responses_SERDA_ONLY.jsonl
 server_local.log
 
 llm_proposals_for_review.jsonl
+regex_ga_features.jsonl
+regex_evidence.jsonl

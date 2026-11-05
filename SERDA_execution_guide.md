@@ -450,6 +450,8 @@ The tracked local-LLM configuration now requests the complete Erika clinical sch
 (all ten domains), split into small field batches. Rerun the same synthetic command
 after this update; older four-domain pass receipts are invalid for the new version.
 Compare `llm_proposals_for_review.jsonl` (source-grounded model suggestions) with
-`llm_ga_features.jsonl` (automatically verified values) and `review.html`. Both JSON
+`llm_ga_features.jsonl` (independent LLM predictions passing schema/source checks, not clinical validation) and `review.html`. Both JSON
 files follow Erika's schema; the proposal file explicitly requires human review.
 Metadata note ID/date come only from reliable frozen source metadata, never LLM guesses.
+
+The local LLM experiment now runs independently of Regex: Regex does not approve, reject or correct model values. Use the same frozen notes and shared `reference_annotations.csv` to adjudicate both methods. Existing baselines stay unchanged. After updating code, rerun the synthetic smoke command before any explicitly authorized patient-package run; older rule-gated results are not an independent LLM benchmark.

@@ -1,8 +1,8 @@
 """Offline, domain-wise llama.cpp experiment. No Excel, discovery or external URLs.
 
 LLM proposals are not clinical truth. Exact source matches are necessary, not
-sufficient. Only quote-local deterministic verification permits automatic acceptance;
-novel grounded phrasings are retained for human review, never silently promoted.
+sufficient. LLM predictions are independent of Regex; acceptance here means only
+structural/source-quote checks, never clinical correctness.
 """
 import argparse
 import copy
@@ -23,7 +23,7 @@ from urllib.request import Request, build_opener, ProxyHandler, HTTPRedirectHand
 
 import yaml
 from jsonschema import Draft202012Validator, FormatChecker
-from .ga_schema_engine import extract, schema_leaves, put, context_status, SCHEMA_PATH
+from .ga_schema_engine import extract, schema_leaves, put, SCHEMA_PATH
 from .ga_frozen_extract import load_package, digest, save, write_csv
 
 CLINICAL_DOMAINS = ('performance_status','physical_function','physical_performance','falls',
@@ -225,7 +225,7 @@ def parse_reply(reply,domain,field_paths=None):
     except Exception:raise LLMError('Malformed or domain-schema-invalid model JSON; findings withheld.') from None
 
 
-def verify(finding,record,chunk_start,chunk_end,source_audit=None):
+def verify(finding,record,chunk_start,chunk_end):
     text=record['text'];quote=finding['quote'];chunk=text[chunk_start:chunk_end]
     locations=[];offset=0
     while True:
@@ -239,27 +239,14 @@ def verify(finding,record,chunk_start,chunk_end,source_audit=None):
     start=locations[0];end=start+len(quote)
     result.update(character_start=start,character_end=end,source_excel_rows=sorted({r['source_excel_row'] for r in record['source_rows'] if r['text_start']<end and r['text_end']>start}))
     if finding['certainty']!='explicit':return dict(result,verification='review',reason='model_marked_uncertain')
-    context=context_status(text,start,end,score=finding['field_path'].endswith(('.value','.max')),judgment=finding['field_path'].endswith('clinician_status'))
-    if context!='candidate':return dict(result,verification='review',reason=context)
-    # Verify the FIELD/VALUE relationship, not just presence of a number somewhere in a quote.
-    _,audit=extract(quote)
-    field=next(f for f in audit if f['field_path']==finding['field_path'])
-    if field['extraction_status']=='extracted':
-        if field['predicted_value']!=finding['value']:return dict(result,verification='rejected',reason='value_contradicts_quote_parser')
-        if source_audit is None:source_audit={a['field_path']:a for a in extract(text)[1]}
-        original=source_audit[finding['field_path']]
-        if original['extraction_status'] in {'ambiguous','conflicting'} or original['extraction_status']=='extracted' and original['predicted_value']!=finding['value']:
-            return dict(result,verification='review',reason='full_source_rule_conflict_or_context')
-        return dict(result,verification='accepted',reason='exact_quote_and_field_value_rule_verified')
-    if field['extraction_status'] in {'conflicting','ambiguous'}:return dict(result,verification='review',reason='quote_context_unresolved')
-    # An exact quote alone cannot establish clinical entailment of a new phrasing.
-    return dict(result,verification='review',reason='source_grounded_but_semantic_verification_requires_human')
+    # Do not use Regex as a judge: even an incorrect value with a real quote must
+    # remain an independent LLM prediction for human-reference evaluation.
+    return dict(result,verification='accepted',reason='exact_quote_located_clinical_meaning_unverified')
 
 
 def infer(records,cfg,client):
     candidates=defaultdict(list);requests=[];coverage={};raw=[];request_count=0
     for record in records:
-        source_audit={a['field_path']:a for a in extract(record['text'])[1]}
         for domain in cfg['domains']:
             complete=True
             for fields in field_batches(domain,cfg.get('fields_per_prompt',8)):
@@ -278,7 +265,7 @@ def infer(records,cfg,client):
                         reply=client.generate(domain,msg)
                         raw.append(dict(sample_id=record['sample_id'],domain=domain,field_paths=fields,chunk_start=start,chunk_end=end,response=reply))
                         findings=parse_reply(reply,domain,fields)
-                        for finding in findings:candidates[record['sample_id']].append(verify(finding,record,start,end,source_audit))
+                        for finding in findings:candidates[record['sample_id']].append(verify(finding,record,start,end))
                         usage=reply.get('usage',{})
                         requests.append(dict(sample_id=record['sample_id'],domain=domain,field_paths=fields,chunk_start=start,chunk_end=end,
                             status='completed',seconds=time.perf_counter()-clock,prompt_tokens=tokens,
@@ -382,12 +369,12 @@ def authorize_package(package,authorized,receipt_path,cfg_hash):
 def render_review(path,records,results,comparisons):
     html=['<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'"><title>Local LLM GA experiment</title>',
           '<style>body{font:16px sans-serif;max-width:1200px;margin:2em auto}pre{white-space:pre-wrap;overflow-wrap:anywhere}table{border-collapse:collapse}td,th{border:1px solid #aaa;padding:.5em;vertical-align:top}</style>',
-          '<h1>SENSITIVE — local experiment review</h1><p>Read original text first. LLM proposals, source verification and clinical correctness are distinct. Accepted values passed exact-quote and deterministic field/value verification. Novel source-grounded expressions still require human review. Regex agreement is not accuracy; no human clinical reference is implied.</p>']
+          '<h1>SENSITIVE — local experiment review</h1><p>Read original text first. LLM proposals, source verification and clinical correctness are distinct. Accepted means JSON/source-quote checks only, NOT clinical correctness. Regex never filters LLM predictions. Incorrect values, historical misinterpretations and novel expressions require independent human adjudication. Regex agreement is not accuracy; no human clinical reference is implied.</p>']
     for record,(clinical,audit) in zip(records,results):
         html.extend(['<h2>'+escape(record['sample_id'])+'</h2>',
             '<p>'+escape('Source target approval: '+str(record.get('target_confirmed',False))+'; not independently validated by this experiment.')+'</p>',
             '<pre>'+escape(record['text'])+'</pre><details><summary>Reveal LLM / Regex comparison</summary>',
-            '<table><tr><th>Field</th><th>LLM proposals (review only)</th><th>LLM accepted value/status</th><th>Regex value/status</th><th>LLM proposals and verification</th></tr>'])
+            '<table><tr><th>Field</th><th>LLM proposals (review only)</th><th>LLM prediction/status (source checks only)</th><th>Regex value/status</th><th>LLM proposals and verification</th></tr>'])
         index={a['field_path']:a for a in audit}
         for c in comparisons:
             if c['sample_id']!=record['sample_id']:continue
@@ -413,9 +400,11 @@ def run(config_path,output,package=None,authorized=False,receipt_path=None,serve
                     if not manager.metadata.get(key) or manager.metadata.get(key)!=receipt.get('server',{}).get(key):raise LLMError('Model/server differs from successful synthetic smoke run.')
             candidates,requests,coverage,raw=infer(records,cfg,client)
         results=[consolidate(r,candidates[r['sample_id']],cfg,coverage) for r in records]
-        comparisons=[];regex_seconds=0
+        comparisons=[];regex_seconds=0;regex_outputs=[];regex_evidence=[]
         for record,(_,audit) in zip(records,results):
-            start=time.perf_counter();_,regex=extract(record['text'],record['source_rows']);regex_seconds+=time.perf_counter()-start
+            start=time.perf_counter();regex_object,regex=extract(record['text'],record['source_rows']);regex_seconds+=time.perf_counter()-start
+            regex_outputs.append(dict(sample_id=record['sample_id'],internal_note_id=record.get('internal_note_id'),features=regex_object))
+            regex_evidence.append(dict(sample_id=record['sample_id'],internal_note_id=record.get('internal_note_id'),fields=regex))
             index={f['field_path']:f for f in regex}
             for a in audit:
                 r=index[a['field_path']];comparable=a['status']=='accepted' and r['extraction_status']=='extracted'
@@ -427,9 +416,11 @@ def run(config_path,output,package=None,authorized=False,receipt_path=None,serve
         def jsonl(name,objects):
             with (out/name).open('w',encoding='utf-8') as f:
                 for obj in objects:f.write(json.dumps(obj,ensure_ascii=False)+'\n')
+        jsonl('regex_ga_features.jsonl',regex_outputs)
+        jsonl('regex_evidence.jsonl',regex_evidence)
         jsonl('llm_ga_features.jsonl',(c for c,_ in results))
         # Independent typed LLM proposals with verified source quotes remain review-only.
-        # Do not require the Regex verifier to know a novel clinical phrasing here.
+        # Regex is a separate comparison method, never a verifier.
         proposals=[]
         for clinical,audit in results:
             proposal={}
@@ -446,6 +437,7 @@ def run(config_path,output,package=None,authorized=False,receipt_path=None,serve
         jsonl('llm_evidence.jsonl',(dict(sample_id=r['sample_id'],internal_note_id=r.get('internal_note_id'),fields=a) for r,(_,a) in zip(records,results)))
         jsonl('raw_local_responses_SERDA_ONLY.jsonl',raw)
         write_csv(out/'llm_regex_comparison.csv',comparisons,list(comparisons[0]) if comparisons else ['sample_id','field_path'])
+        write_csv(out/'reference_annotations.csv',[dict(sample_id=c['sample_id'],field_path=c['field_path'],reference_status='not_reviewed',reference_value='',reference_evidence='',reviewer='',review_comment='') for c in comparisons],['sample_id','field_path','reference_status','reference_value','reference_evidence','reviewer','review_comment'])
         field_rows=[]
         for path in dict.fromkeys(a['field_path'] for _,audit in results for a in audit):
             field_counts=Counter(a['status'] for _,audit in results for a in audit if a['field_path']==path)
@@ -472,7 +464,7 @@ def run(config_path,output,package=None,authorized=False,receipt_path=None,serve
         render_review(out/'review.html',records,results,comparisons)
         try:commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=Path(__file__).resolve().parent.parent,text=True,stderr=subprocess.DEVNULL).strip()
         except (OSError,subprocess.CalledProcessError):commit='unavailable'
-        manifest=dict(mode=mode,runtime='Windows_SERDA_local_model' if os.name=='nt' and server_factory is ManagedServer else 'synthetic_development_or_mock',
+        manifest=dict(method_design='independent_llm_and_regex_v2',acceptance_policy='JSON schema plus unique verbatim quote; no Regex semantic checks',mode=mode,runtime='Windows_SERDA_local_model' if os.name=='nt' and server_factory is ManagedServer else 'synthetic_development_or_mock',
             utc=datetime.now(timezone.utc).isoformat(),commit=commit,config=cfg,config_sha256=cfg_hash,code_sha256=code_hashes(),source_sha256=inputs,
             server=manager.metadata,synthetic_smoke_passed=smoke,domains=cfg['domains'],request_count=len(requests),all_domains_complete=complete,
             full_clinical_schema_requested=set(cfg['domains'])==set(CLINICAL_DOMAINS),
@@ -482,7 +474,7 @@ def run(config_path,output,package=None,authorized=False,receipt_path=None,serve
             prompt_batches={d:field_batches(d,cfg.get('fields_per_prompt',8)) for d in cfg['domains']},
             field_status_counts=dict(counts),wall_seconds=time.perf_counter()-wall,regex_seconds=regex_seconds,
             record_order=[dict(sample_id=r['sample_id'],internal_note_id=r.get('internal_note_id'),target_confirmed=r.get('target_confirmed',False)) for r in records],
-            limitations=['Exact quote is not clinical entailment.','Automatic acceptance requires quote-local rule verification; LLM-only phrasing requires review.',
+            limitations=['Exact quote is not clinical entailment.','Accepted means structural and quote checks only; clinical semantics are unverified. Regex never gates LLM predictions.',
                         'Finite overlapping windows may lose context. Incomplete domains cannot produce accepted values.',
                         'No clinical accuracy estimates without human reference.','Output tokens/sec includes local HTTP, template/token counting and generation, not raw model eval speed.'])
         save(out/'run_manifest.json',manifest)

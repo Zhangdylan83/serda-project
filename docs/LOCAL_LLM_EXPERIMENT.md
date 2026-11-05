@@ -89,30 +89,42 @@ Verification has distinct stages:
 1. Validate model JSON and each field's type/enum against the domain schema.
 2. Locate the quoted substring exactly and uniquely in that window; convert its
    position into unchanged full-note character offsets and original Excel rows.
-3. Check full-source local context and existing rule conflicts. Historical,
-   not-performed, negated or uncertain proposals go to review.
-4. Require quote-local deterministic rules to verify the **field/value relationship**
-   before automatic acceptance. A number merely appearing in a quote is insufficient.
-5. Preserve novel source-grounded phrasings as `review_required`; contradictions or
-   fabricated quotes are rejected. Resolve conflicting accepted values across windows
-   by withholding them, not choosing first/latest. Coupled components stay unresolved
-   when one has a conflict.
+3. Keep model-declared uncertainty for review and conflicting model values unresolved.
+4. Run Regex separately on exactly the same frozen notes. Never pass Regex values,
+   context rules or disagreements into LLM inference or acceptance.
 
-This is intentionally a **rule-verified LLM proposal experiment**, not an independent
-LLM clinical-validity judge. Automatic acceptance is limited by the verifier's rule
-coverage and possible rule errors. A grounded but novel phrasing can be useful for
-human review even when no value enters clinical JSON. Compare raw proposals as well
-as accepted values; accepted-only agreement with Regex is partly by construction and
-must not be reported as independent model accuracy. Exact quote verification cannot
-prove clinical entailment or eliminate all hallucination/interpretation errors.
+This is an **independent LLM versus Regex experiment**. `accepted` is retained as a
+file-format status meaning JSON and unique verbatim-quote checks passed; it does NOT
+mean clinical correctness. A model can quote “MoCA 15/30” but predict 29, or misread
+history: these errors remain LLM predictions for human adjudication, not silently
+corrected or removed by Regex. Missing/fabricated quotes fail source checks; all raw
+responses and rejected candidates remain available. Report these failures and
+abstentions when evaluating the complete sample grid, not just accepted rows.
+
+Read notes first and fill `reference_annotations.csv` independently of either method:
+`reference_status` = documented / not_documented / unclear / not_reviewed;
+`reference_value` contains a JSON scalar for documented fields. Record supporting
+text and reviewer. Use the SAME adjudicated reference for both methods; a machine's
+not_found is not clinically not_documented. Compare per-field correct values,
+misses, wrong values, abstentions and failures, excluding unreviewed/unclear cells
+from correctness denominators but reporting their counts. No accuracy evaluator or
+clinical accuracy claim is supplied by this experiment. Agreement is not accuracy.
+Metadata note_id/note_date are not clinical extraction performance endpoints.
+The eight development samples cannot establish population-level accuracy.
+
+Old rule-gated experiment outputs remain frozen and are not independent LLM
+benchmarks. Rerun synthetic smoke after updating, then explicitly authorize a NEW
+package run; do not overwrite old results.
 
 ## Outputs and runtime
 
 - `llm_proposals_for_review.jsonl`: independent schema-valid LLM proposals whose
   quotes were located in source, including novel phrasings that Regex cannot verify.
   These are **human-review candidates**, not clinical truth; consult evidence statuses.
-  Fabricated quotes, contradicted values, conflicting values and incomplete domains
+  Fabricated quotes, conflicting values and incomplete domains
   do not enter this file.
+- `regex_ga_features.jsonl` and `regex_evidence.jsonl`: independent unchanged Regex outputs with sample IDs.
+- `reference_annotations.csv`: blank shared human-reference grid, never seeded from predictions.
 - `llm_ga_features.jsonl`: sparse accepted objects conforming to Erika's schema;
   unresolved fields omitted, not converted to clinical nulls.
 - `llm_evidence.jsonl`: accepted/review/rejected proposals, quotes, offsets and Excel
@@ -166,7 +178,7 @@ to `Z:\PHI` occurs anywhere in this workflow.
 ## Development verification
 
 Synthetic unit tests cover strict domain types, exact source quotes/offsets, fabricated
-quotes, value mismatch, negation/history/uncertainty, new phrasing held for review,
+quotes, preservation of model errors for adjudication, model uncertainty, novel phrasing,
 conflicts, incomplete domains, chunk coverage and context/request budgets, package
 access gates, output immutability, fixed local endpoints and PowerShell contract.
 A synthetic protocol executable exercises persistent startup, authenticated local

@@ -71,26 +71,26 @@ class LLMTests(unittest.TestCase):
         fake=llm.verify(finding('cognition.moca.value',29,'MoCA 29/30'),r,0,len(text))
         self.assertEqual(fake['verification'],'rejected')
         wrong=llm.verify(finding('cognition.moca.value',29,'MoCA 15/30'),r,0,len(text))
-        self.assertEqual(wrong['verification'],'rejected')
+        self.assertEqual(wrong['verification'],'accepted')  # Human reference must catch wrong values.
         short=llm.verify(finding('cognition.moca.value',15,'15'),r,0,len(text))
-        self.assertEqual(short['verification'],'review')
+        self.assertEqual(short['verification'],'accepted')
         repeated=record('MoCA 15/30. MoCA 15/30.')
         self.assertEqual(llm.verify(finding('cognition.moca.value',15,'MoCA 15/30'),repeated,0,len(repeated['text']))['verification'],'review')
 
     def test_context_and_uncertainty(self):
         for text in ['Previous MoCA 15/30.','MoCA 15/30 not performed.','No MoCA 15/30.']:
             r=record(text)
-            self.assertNotEqual(llm.verify(finding('cognition.moca.value',15,'MoCA 15/30'),r,0,len(text))['verification'],'accepted')
+            self.assertEqual(llm.verify(finding('cognition.moca.value',15,'MoCA 15/30'),r,0,len(text))['verification'],'accepted')
         r=record('Independent with all ADLs except bathing.')
         value=llm.verify(finding('physical_function.adl.bathing','independent','Independent with all ADLs'),r,0,len(r['text']))
-        self.assertEqual(value['verification'],'review')
+        self.assertEqual(value['verification'],'accepted')
         r=record('MoCA 15/30')
         self.assertEqual(llm.verify(finding('cognition.moca.value',15,r['text'],'uncertain'),r,0,len(r['text']))['verification'],'review')
 
     def test_new_phrasing_is_retained_for_human_review(self):
         text='The patient requires another person to help with showering.'
         candidate=llm.verify(finding('physical_function.adl.bathing','needs_assistance',text),record(text),0,len(text))
-        self.assertEqual(candidate['verification'],'review');self.assertEqual(candidate['quote'],text)
+        self.assertEqual(candidate['verification'],'accepted');self.assertEqual(candidate['quote'],text)
 
     def test_conflicts_and_partial_domains_cannot_be_accepted(self):
         cfg=llm.load_config(CONFIG);cfg['domains']=['cognition'];r=record('MoCA 15/30. MoCA 20/30.')
@@ -134,8 +134,11 @@ class LLMTests(unittest.TestCase):
             with (out/'llm_regex_comparison.csv').open() as f:rows=list(csv.DictReader(f))
             self.assertEqual({r['sample_id'] for r in rows},{'SYNTHETIC_001'})
             self.assertEqual({r['field_path'] for r in rows},set().union(*(set(llm.domain_fields(d)) for d in llm.DOMAIN_PREFIXES))|{'note_id','note_date'})
-            self.assertIn('exact_quote_and_field_value_rule_verified',(out/'llm_evidence.jsonl').read_text())
+            self.assertIn('exact_quote_located_clinical_meaning_unverified',(out/'llm_evidence.jsonl').read_text())
             self.assertTrue((out/'request_runtime.csv').exists())
+            self.assertTrue((out/'regex_ga_features.jsonl').exists())
+            self.assertTrue((out/'regex_evidence.jsonl').exists())
+            self.assertTrue((out/'reference_annotations.csv').exists())
             with self.assertRaises(llm.LLMError):llm.run(CONFIG,out,server_factory=MockServer)
 
     def test_windows_launcher_contract(self):
@@ -267,6 +270,18 @@ class LLMTests(unittest.TestCase):
             proposal=json.loads((out/'llm_proposals_for_review.jsonl').read_text())
             accepted=json.loads((out/'llm_ga_features.jsonl').read_text())
             self.assertEqual(proposal['physical_function']['adl']['bathing'],'needs_assistance')
-            self.assertNotIn('bathing',accepted.get('physical_function',{}).get('adl',{}))
+            self.assertEqual(accepted['physical_function']['adl']['bathing'],'needs_assistance')
             evidence=json.loads((out/'llm_evidence.jsonl').read_text())
-            self.assertEqual(next(f for f in evidence['fields'] if f['field_path']=='physical_function.adl.bathing')['status'],'review_required')
+            self.assertEqual(next(f for f in evidence['fields'] if f['field_path']=='physical_function.adl.bathing')['status'],'accepted')
+
+    def test_llm_inference_never_calls_regex(self):
+        class IndependentClient(MockClient):
+            def generate(self, domain, msg):
+                fields=json.loads(msg[-1]['content'])['allowed_fields']
+                return reply([finding('cognition.moca.value',29,'MoCA 15/30')] if 'cognition.moca.value' in fields else [])
+        cfg=llm.load_config(CONFIG);cfg['domains']=['cognition']
+        r=record('MoCA 15/30')
+        with patch.object(llm,'extract',side_effect=AssertionError('Regex must not judge LLM')):
+            candidates,_,coverage,_=llm.infer([r],cfg,IndependentClient(cfg))
+            obj,_=llm.consolidate(r,candidates[r['sample_id']],cfg,coverage)
+        self.assertEqual(obj['cognition']['moca']['value'],29)
