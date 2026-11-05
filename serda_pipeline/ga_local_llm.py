@@ -345,6 +345,7 @@ def validate_output(path,package=None):
     if os.name=='nt' and PureWindowsPath(str(path)).drive.upper()!='Z:':raise LLMError('SERDA outputs must be supplied as an approved Z: path, not Desktop or UNC.')
     out=Path(path).resolve();repo=Path(__file__).resolve().parent.parent
     if out.exists():raise LLMError('Output must be a new experiment directory.')
+    if not out.parent.is_dir():raise LLMError('Output parent must be an existing approved directory.')
     if any(out==p or out.is_relative_to(p) or p.is_relative_to(out) for p in [repo]+([Path(package).resolve()] if package else [])):
         raise LLMError('Output must be outside code and source package directories.')
     # Mapped Z: drives may canonicalize to UNC. Permit that derived canonical path,
@@ -358,7 +359,7 @@ def authorize_package(package,authorized,receipt_path,cfg_hash):
     # Validate the gate before opening any candidate text.
     if not authorized:raise LLMError('Patient-package inference requires separate explicit authorization; default is synthetic only.')
     if os.name!='nt':raise LLMError('Patient-package mode is restricted to the Windows SERDA runtime.')
-    if not receipt_path:raise LLMError('First complete the synthetic launcher smoke run and supply its run directory.')
+    if not receipt_path:return None  # Explicitly authorized direct mode; smoke is optional.
     try:receipt=json.loads((Path(receipt_path)/'run_manifest.json').read_text(encoding='utf-8'))
     except Exception:raise LLMError('Synthetic validation receipt missing or unreadable.') from None
     if receipt.get('mode')!='synthetic' or receipt.get('synthetic_smoke_passed') is not True or receipt.get('runtime')!='Windows_SERDA_local_model' or receipt.get('code_sha256')!=code_hashes() or receipt.get('config_sha256')!=cfg_hash:
@@ -465,6 +466,8 @@ def run(config_path,output,package=None,authorized=False,receipt_path=None,serve
         try:commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=Path(__file__).resolve().parent.parent,text=True,stderr=subprocess.DEVNULL).strip()
         except (OSError,subprocess.CalledProcessError):commit='unavailable'
         manifest=dict(method_design='independent_llm_and_regex_v2',acceptance_policy='JSON schema plus unique verbatim quote; no Regex semantic checks',mode=mode,runtime='Windows_SERDA_local_model' if os.name=='nt' and server_factory is ManagedServer else 'synthetic_development_or_mock',
+            synthetic_receipt_status=('validated' if receipt else 'not_supplied_optional') if package else 'not_applicable',
+            patient_inference_explicitly_authorized=bool(package and authorized),
             utc=datetime.now(timezone.utc).isoformat(),commit=commit,config=cfg,config_sha256=cfg_hash,code_sha256=code_hashes(),source_sha256=inputs,
             server=manager.metadata,synthetic_smoke_passed=smoke,domains=cfg['domains'],request_count=len(requests),all_domains_complete=complete,
             full_clinical_schema_requested=set(cfg['domains'])==set(CLINICAL_DOMAINS),
@@ -491,7 +494,7 @@ def main():
     parser.add_argument('--output-dir',type=Path,required=True)
     parser.add_argument('--package',type=Path)
     parser.add_argument('--authorize-patient-inference',action='store_true')
-    parser.add_argument('--synthetic-pass-run',type=Path)
+    parser.add_argument('--synthetic-pass-run',type=Path,help='Optional matching Windows synthetic receipt; when supplied it is validated.')
     args=parser.parse_args()
     if not args.package and (args.authorize_patient_inference or args.synthetic_pass_run):parser.error('Patient authorization arguments require an explicit package.')
     try:passed=run(args.config,args.output_dir,args.package,args.authorize_patient_inference,args.synthetic_pass_run)

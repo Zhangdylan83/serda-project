@@ -13,8 +13,8 @@ if (-not (Test-Path -LiteralPath $PythonPath)) { throw 'Existing approved Python
 $Destination = [IO.Path]::GetFullPath($OutputRoot)
 if (-not (Test-Path -LiteralPath $Destination -PathType Container)) { throw 'OutputRoot must be an existing approved directory.' }
 if ([IO.Path]::GetPathRoot($Destination).TrimEnd('\') -ine 'Z:') { throw 'OutputRoot must be an existing approved project directory on Z:, not Desktop or UNC.' }
-if ($PackagePath -and (-not $AuthorizePatientInference -or -not $SyntheticPassRun)) {
-    throw 'Patient inference is a separately authorized step. First run synthetic mode successfully, then supply explicit authorization and its run directory.'
+if ($PackagePath -and -not $AuthorizePatientInference) {
+    throw 'Patient inference requires explicit -AuthorizePatientInference. Synthetic smoke is optional.'
 }
 if (-not $PackagePath -and ($AuthorizePatientInference -or $SyntheticPassRun)) { throw 'Authorization arguments require an explicit frozen package.' }
 $Mode = if ($PackagePath) { 'package' } else { 'synthetic' }
@@ -22,7 +22,8 @@ $RunName = 'ga_local_llm_' + $Mode + '_' + (Get-Date -Format 'yyyyMMdd_HHmmss') 
 $Output = Join-Path $Destination $RunName
 $Arguments = @('-m','serda_pipeline.ga_local_llm','--config',(Join-Path $RepoRoot 'configs\serda_ga_llm.yaml'),'--output-dir',$Output)
 if ($PackagePath) {
-    $Arguments += @('--package',(Resolve-Path -LiteralPath $PackagePath).Path,'--authorize-patient-inference','--synthetic-pass-run',(Resolve-Path -LiteralPath $SyntheticPassRun).Path)
+    $Arguments += @('--package',(Resolve-Path -LiteralPath $PackagePath).Path,'--authorize-patient-inference')
+    if ($SyntheticPassRun) { $Arguments += @('--synthetic-pass-run',(Resolve-Path -LiteralPath $SyntheticPassRun).Path) }
 }
 Push-Location $RepoRoot
 try {

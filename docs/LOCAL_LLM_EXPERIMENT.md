@@ -7,7 +7,7 @@ schema: performance status, physical function (including ADL/IADL and MOS), phys
 performance, falls, cognition, psychological, comorbidity, nutrition, polypharmacy
 and social support. No corpus discovery, Excel read, Prepare or note resampling.
 
-## First run: synthetic text only
+## Optional diagnostic: synthetic text only
 
 The user-reported SERDA model setup is Windows x64, four logical CPUs, 16 GiB RAM,
 Qwen3-1.7B-Q4_K_M.gguf, llama.cpp b12125. The previously reported ~9.4 tokens/sec is
@@ -16,7 +16,7 @@ llama.cpp protocol process; actual Windows PowerShell and Qwen validation must o
 inside SERDA. No new model or weights are downloaded by any command below.
 
 ```powershell
-cd "$env:USERPROFILE\Desktop\serda-project"
+cd "Z:\serda-project"
 git pull --ff-only origin main
 .\scripts\run_ga_local_llm.ps1 -OutputRoot 'Z:\ApprovedRestrictedProject\ga-experiments'
 ```
@@ -56,7 +56,7 @@ and weight-loss amount/unit/period. These are smoke checks, not clinical accurac
 
 A JSON parse failure, truncation, unsupported server option/API, thinking/tool output,
 failed field verification or missing expected synthetic values fails the smoke run.
-Do not bypass it. Keep `execution_failure.json` (if startup failed),
+A diagnostic failure is not a successful smoke receipt. Keep `execution_failure.json` (if startup failed),
 `request_runtime.json`, `synthetic_smoke_checks.json` and local server log inside
 SERDA for diagnosis. Terminal errors never print model responses or note excerpts.
 If the fixed b12125 endpoints or flags differ in that installation, report the
@@ -113,8 +113,8 @@ Metadata note_id/note_date are not clinical extraction performance endpoints.
 The eight development samples cannot establish population-level accuracy.
 
 Old rule-gated experiment outputs remain frozen and are not independent LLM
-benchmarks. Rerun synthetic smoke after updating, then explicitly authorize a NEW
-package run; do not overwrite old results.
+benchmarks. Explicitly authorize a NEW package run; do not overwrite old results.
+Synthetic smoke is optional, including after updates.
 
 ## Outputs and runtime
 
@@ -148,25 +148,37 @@ package run; do not overwrite old results.
 There are no real-note accuracy metrics without human references. Review compares
 outputs, not ground truth. JSON structural validity is distinct from clinical truth.
 
-## Later patient inference — separate authorization required
+## Direct inference on frozen S001–S008
 
-**Not authorized or run as part of this implementation.** After a successful real
-Windows synthetic run, and only after separately authorizing patient inference:
+An explicitly authorized Windows SERDA package run does **not** require a separate
+synthetic smoke run or `-SyntheticPassRun`. Use the existing shared-drive checkout:
 
 ```powershell
+cd 'Z:\serda-project'
+git pull --ff-only origin main
+$OutputRoot = Read-Host 'Existing approved restricted Z: output directory (outside repo and package)'
 .\scripts\run_ga_local_llm.ps1 `
-  -OutputRoot 'Z:\ApprovedRestrictedProject\ga-experiments' `
+  -OutputRoot $OutputRoot `
   -PackagePath "$env:USERPROFILE\Desktop\serda-results\ga_grouping_review_02" `
-  -AuthorizePatientInference `
-  -SyntheticPassRun 'Z:\ApprovedRestrictedProject\ga-experiments\<successful-synthetic-run>'
+  -AuthorizePatientInference
 ```
 
-The package must be explicitly supplied. The gate is checked before candidate text
-is opened: Windows runtime, explicit authorization and a matching successful
-synthetic receipt for the current code/config are required. The model/server hashes
-must also match the receipt before any patient inference. A new code/config/model
-version requires another synthetic smoke run. This is an operational guard, not a
-replacement for institutional permission.
+The package path is the previously reported frozen package location; if moved,
+supply its actual path. Membership is read from the frozen manifest, never guessed
+or resampled. An existing `.venv` under `Z:\serda-project` is used automatically;
+otherwise pass `-PythonPath` pointing to the existing approved Python executable.
+The launcher creates a unique `ga_local_llm_package_<timestamp>_<unique>` directory
+under the existing approved Z: OutputRoot. No project-specific output path is assumed.
+
+Authorization and Windows checks occur before reading note text. The model/server
+are still checked locally and their hashes recorded, alongside code/config hashes.
+`run_manifest.json` records `synthetic_receipt_status=not_supplied_optional` for a
+direct run; it does not claim a synthetic test was performed.
+
+Optionally supply `-SyntheticPassRun '<successful Windows synthetic run directory>'`.
+If supplied, it must pass the existing runtime/code/config/model/server matching
+checks; stale or failed receipts are rejected, not silently ignored. Without
+PackagePath the launcher still runs built-in synthetic diagnostics only.
 
 The reused frozen-package reader verifies membership, hashes, original text/row
 mapping, existing identity/reconstruction approvals and reviewer. No target note
@@ -201,7 +213,7 @@ has a separate provenance/status, not an LLM extraction claim.
 The synthetic smoke test now includes at least one explicit value in each of the
 ten clinical domains. Passing it still does not prove full field accuracy or real-note
 performance. The old four-domain receipt no longer matches this code/configuration:
-run the full-schema synthetic test before any separately authorized patient run.
+rerun diagnostics if you want to supply a matching optional receipt.
 The same launcher command is used, without YAML edits. Full schema means every
 clinical field is offered to the model; it does not mean every field should be filled.
 Unrecorded, unresolved and unsupported expressions must not be invented.

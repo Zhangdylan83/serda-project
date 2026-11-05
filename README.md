@@ -278,7 +278,8 @@ LLM predictions receive schema and exact-quote checks only, never Regex semantic
 filtering. Clinical correctness requires the same independent human reference for
 both methods. Separate Regex outputs, a blank reference grid, side-by-side outputs and runtime
 measurements are saved without modifying baselines. Patient-package inference is a
-separate explicit authorization step gated on a successful matching Windows synthetic
-run. See [LOCAL_LLM_EXPERIMENT.md](docs/LOCAL_LLM_EXPERIMENT.md) for commands, limits,
-receipt requirements and the distinction between mock protocol tests and real Qwen
+separate explicit authorization step; the synthetic smoke run is optional. Direct
+package execution from `Z:\serda-project` needs `-PackagePath` and
+`-AuthorizePatientInference`, with no `-SyntheticPassRun` required. See [LOCAL_LLM_EXPERIMENT.md](docs/LOCAL_LLM_EXPERIMENT.md) for commands, limits,
+optional receipt validation and the distinction between mock protocol tests and real Qwen
 execution. No patient inference was performed during development.

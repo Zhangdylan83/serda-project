@@ -144,6 +144,9 @@ class LLMTests(unittest.TestCase):
     def test_windows_launcher_contract(self):
         script=(CONFIG.parents[1]/'scripts'/'run_ga_local_llm.ps1').read_text()
         self.assertIn('[switch]$AuthorizePatientInference',script)
+        self.assertIn('if ($PackagePath -and -not $AuthorizePatientInference)',script)
+        self.assertIn('if ($SyntheticPassRun)',script)
+        self.assertNotIn('-or -not $SyntheticPassRun',script)
         self.assertIn("-ine 'Z:'",script)
         self.assertNotIn('Z:\\PHI',script);self.assertNotIn('--ga-validation-prepare',script)
 
@@ -285,3 +288,60 @@ class LLMTests(unittest.TestCase):
             candidates,_,coverage,_=llm.infer([r],cfg,IndependentClient(cfg))
             obj,_=llm.consolidate(r,candidates[r['sample_id']],cfg,coverage)
         self.assertEqual(obj['cognition']['moca']['value'],29)
+
+    def test_direct_authorization_without_smoke(self):
+        from types import SimpleNamespace
+        with patch.object(llm,'os',SimpleNamespace(name='nt')):
+            self.assertIsNone(llm.authorize_package('explicit package',True,None,'config'))
+            with self.assertRaises(llm.LLMError):llm.authorize_package('explicit package',False,None,'config')
+        with patch.object(llm,'os',SimpleNamespace(name='posix')):
+            with self.assertRaises(llm.LLMError):llm.authorize_package('explicit package',True,None,'config')
+
+    def test_direct_package_preserves_integrity_and_independent_outputs(self):
+        from tests.test_ga_frozen_extract import fixture
+        from types import SimpleNamespace
+        authorize=llm.authorize_package
+        def windows_gate(*args):
+            # Simulate only the platform authorization gate; filesystem remains Linux.
+            with patch.object(llm,'os',SimpleNamespace(name='nt')):return authorize(*args)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);package,internal=fixture(root)
+            before={str(p.relative_to(package)):llm.digest(p) for p in package.rglob('*') if p.is_file()}
+            with patch.object(llm,'authorize_package',side_effect=windows_gate),patch('openpyxl.load_workbook',side_effect=AssertionError('No Excel')),patch('serda_pipeline.ga_validation.prepare',side_effect=AssertionError('No Prepare')):
+                out=root/'direct'
+                self.assertTrue(llm.run(CONFIG,out,package=package,authorized=True,server_factory=MockServer))
+                manifest=json.loads((out/'run_manifest.json').read_text())
+                self.assertEqual(manifest['synthetic_receipt_status'],'not_supplied_optional')
+                self.assertTrue(manifest['patient_inference_explicitly_authorized'])
+                self.assertEqual(manifest['record_order'][0]['sample_id'],'S001')
+                for name in ['llm_evidence.jsonl','regex_evidence.jsonl','llm_regex_comparison.csv','reference_annotations.csv','review.html']:
+                    self.assertTrue((out/name).is_file())
+                self.assertEqual(before,{str(p.relative_to(package)):llm.digest(p) for p in package.rglob('*') if p.is_file()})
+                with self.assertRaises(llm.LLMError):llm.run(CONFIG,out,package=package,authorized=True,server_factory=MockServer)
+                with self.assertRaises(llm.LLMError):llm.run(CONFIG,package/'output',package=package,authorized=True,server_factory=MockServer)
+                with self.assertRaises(llm.LLMError):llm.run(CONFIG,root/'missing'/'output',package=package,authorized=True,server_factory=MockServer)
+                # Tampering still fails before any inference server starts.
+                (package/'candidates'/(internal+'.json')).write_text('{}')
+                from serda_pipeline.ga_frozen_extract import InputError
+                with patch.object(llm,'ManagedServer',side_effect=AssertionError('No server on invalid package')):
+                    with self.assertRaises(InputError):llm.run(CONFIG,root/'tampered',package=package,authorized=True,server_factory=llm.ManagedServer)
+
+    def test_direct_package_missing_approval_is_blocked(self):
+        from tests.test_ga_frozen_extract import fixture
+        from serda_pipeline.ga_frozen_extract import InputError
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);package,_=fixture(root)
+            manifest=package/'sample_manifest.csv'
+            manifest.write_text(manifest.read_text().replace('yes,yes','no,yes'))
+            with patch.object(llm,'authorize_package',return_value=None),patch.object(llm,'ManagedServer',side_effect=AssertionError('No server without approval')):
+                with self.assertRaises(InputError):llm.run(CONFIG,root/'new',package=package,authorized=True,server_factory=llm.ManagedServer)
+
+    def test_direct_package_membership_changes_rejected(self):
+        from tests.test_ga_frozen_extract import fixture
+        from serda_pipeline.ga_frozen_extract import InputError
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);package,_=fixture(root)
+            manifest=package/'sample_manifest.csv'
+            manifest.write_text(manifest.read_text().replace('S001','S009'))
+            with patch.object(llm,'authorize_package',return_value=None),patch.object(llm,'ManagedServer',side_effect=AssertionError('No server on membership changes')):
+                with self.assertRaises(InputError):llm.run(CONFIG,root/'new',package=package,authorized=True,server_factory=llm.ManagedServer)

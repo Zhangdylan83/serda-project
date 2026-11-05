@@ -427,31 +427,37 @@ SOCARE cohort. An incomplete run reports partial coverage and exits nonzero; do 
 interpret blank matrix cells as zero. See [PATIENT_COVERAGE_AUDIT.md](docs/PATIENT_COVERAGE_AUDIT.md)
 for optional independently validated roster coverage and analyst SQL-review questions.
 
-## Local Qwen3 CPU experiment: synthetic smoke test first
+## Local Qwen3 CPU experiment: direct frozen-package inference
+
+Run from the existing shared-drive repository. Enter the actual existing approved
+restricted output directory on Z: when prompted (outside repo and sample package).
+No YAML changes and no synthetic receipt are required.
 
 ```powershell
-cd "$env:USERPROFILE\Desktop\serda-project"
+cd 'Z:\serda-project'
 git pull --ff-only origin main
-.\scripts\run_ga_local_llm.ps1 -OutputRoot 'Z:\ApprovedRestrictedProject\ga-experiments'
+$OutputRoot = Read-Host 'Existing approved restricted Z: output directory'
+.\scripts\run_ga_local_llm.ps1 `
+  -OutputRoot $OutputRoot `
+  -PackagePath "$env:USERPROFILE\Desktop\serda-results\ga_grouping_review_02" `
+  -AuthorizePatientInference
 ```
 
-Use your actual approved restricted Z: output directory. With no PackagePath,
-only built-in synthetic text is sent to a local server at 127.0.0.1. The script
-uses `.venv`, tracked `configs/serda_ga_llm.yaml`, the existing local GGUF and b12125
-llama-server. It creates a new unique experiment directory and stops the server on
-exit. No YAML edit, Excel scan or Prepare is needed. Inspect smoke checks, review
-and runtime outputs; exit 0 plus `synthetic_smoke_checks.json` passed=true is required.
+Use the actual frozen package path if it has moved. The script uses repo `.venv`;
+pass `-PythonPath` to an existing approved Python executable if needed. It reads only
+selected frozen samples, verifies membership/hashes/identity/reconstruction approvals,
+and creates a unique result directory. It never scans Notes.xlsx or reruns Prepare.
+The configured Qwen3 GGUF and b12125 llama-server stay local, CPU-only, 127.0.0.1.
+Server version, model/server hashes, config/code hashes and authorization are recorded.
 
-Actual patient-note inference is separately authorized and requires this successful
-Windows smoke receipt. See [LOCAL_LLM_EXPERIMENT.md](docs/LOCAL_LLM_EXPERIMENT.md).
-DGX mock protocol tests do not establish Windows launcher or real-model success.
+Synthetic diagnostics remain optional:
 
-The tracked local-LLM configuration now requests the complete Erika clinical schema
-(all ten domains), split into small field batches. Rerun the same synthetic command
-after this update; older four-domain pass receipts are invalid for the new version.
-Compare `llm_proposals_for_review.jsonl` (source-grounded model suggestions) with
-`llm_ga_features.jsonl` (independent LLM predictions passing schema/source checks, not clinical validation) and `review.html`. Both JSON
-files follow Erika's schema; the proposal file explicitly requires human review.
-Metadata note ID/date come only from reliable frozen source metadata, never LLM guesses.
+```powershell
+.\scripts\run_ga_local_llm.ps1 -OutputRoot $OutputRoot
+```
 
-The local LLM experiment now runs independently of Regex: Regex does not approve, reject or correct model values. Use the same frozen notes and shared `reference_annotations.csv` to adjudicate both methods. Existing baselines stay unchanged. After updating code, rerun the synthetic smoke command before any explicitly authorized patient-package run; older rule-gated results are not an independent LLM benchmark.
+An optional `-SyntheticPassRun` on package mode is strictly validated when supplied.
+No receipt is needed otherwise. See [LOCAL_LLM_EXPERIMENT.md](docs/LOCAL_LLM_EXPERIMENT.md).
+The full Erika schema, independent LLM/Regex extraction, evidence, review.html and
+blank reference_annotations.csv are unchanged. Existing baselines stay untouched.
+Correctness requires shared human references; mock tests are not real Qwen validation.
